@@ -1,0 +1,24 @@
+{
+    "name": "@evir/demo",
+    "private": true,
+    "license": "(MIT or CC0 1.0)",
+    "type": "module",
+    "scripts": {
+        "compile": "virmator compile",
+        "docs": "virmator docs",
+        "start": "tsx src/index.ts",
+        "test": "virmator test node",
+        "test:coverage": "npm run test coverage",
+        "test:docs": "virmator docs check",
+        "test:update": "npm test update"
+    },
+    "engines": {
+        "node": ">=22"
+    },
+    "devDependencies": {
+        "@augment-vir/test": "^31.10.1"
+    },
+    "dependencies": {
+        "@augment-vir/assert": "^31.10.1"
+    }
+}

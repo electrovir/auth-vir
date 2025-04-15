@@ -1,0 +1,56 @@
+{
+    "name": "auth-vir",
+    "description": "",
+    "keywords": [],
+    "homepage": "https://github.com/electrovir/auth-vir",
+    "bugs": {
+        "url": "https://github.com/electrovir/auth-vir/issues"
+    },
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/electrovir/auth-vir.git"
+    },
+    "license": "(MIT or CC0 1.0)",
+    "author": {
+        "name": "electrovir",
+        "url": "https://github.com/electrovir"
+    },
+    "type": "module",
+    "main": "src/index.ts",
+    "module": "src/index.ts",
+    "types": "src/index.ts",
+    "scripts": {
+        "build": "virmator frontend build",
+        "compile": "virmator compile",
+        "docs": "virmator docs",
+        "start": "virmator frontend",
+        "test": "virmator test web",
+        "test:coverage": "npm run test coverage",
+        "test:docs": "virmator docs check",
+        "test:update": "npm test update"
+    },
+    "dependencies": {
+        "@augment-vir/assert": "^31.11.0",
+        "@augment-vir/common": "^31.11.0",
+        "date-vir": "^7.3.1",
+        "hash-wasm": "^4.12.0",
+        "jose": "^6.0.10"
+    },
+    "devDependencies": {
+        "@augment-vir/test": "^31.11.0",
+        "@web/dev-server-esbuild": "^1.0.4",
+        "@web/test-runner": "^0.20.0",
+        "@web/test-runner-commands": "^0.9.0",
+        "@web/test-runner-playwright": "^0.11.0",
+        "@web/test-runner-visual-regression": "^0.10.0",
+        "istanbul-smart-text-reporter": "^1.1.5",
+        "markdown-code-example-inserter": "^3.0.3",
+        "typedoc": "^0.28.1"
+    },
+    "engines": {
+        "node": ">=22"
+    },
+    "publishConfig": {
+        "access": "public"
+    }
+}
