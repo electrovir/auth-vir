@@ -1,6 +1,6 @@
 {
     "name": "@evir/demo",
-    "version": "0.0.1",
+    "version": "0.0.2",
     "private": true,
     "license": "(MIT or CC0 1.0)",
     "type": "module",
@@ -16,7 +16,7 @@
         "@rest-vir/define-service": "^0.13.0",
         "@rest-vir/implement-service": "^0.13.0",
         "@rest-vir/run-service": "^0.13.0",
-        "auth-vir": "*",
+        "auth-vir": "^0.0.2",
         "concurrently": "^9.1.2",
         "element-vir": "^25.3.0",
         "vira": "^25.3.0"

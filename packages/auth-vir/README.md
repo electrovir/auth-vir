@@ -65,7 +65,7 @@ Use this on your host / server / backend to authenticate client / frontend reque
 5. In your application code, load the string keys from step 1 into [`parseJwtKeys`](https://electrovir.github.io/auth-vir/functions/parseUserJwt.html): `await parseJwtKeys(stringKeys)`.
 6. Use the output of [`parseJwtKeys`](https://electrovir.github.io/auth-vir/functions/parseUserJwt.html) in all auth functionality:
     - [`generateSuccessfulLoginHeaders`](https://electrovir.github.io/auth-vir/functions/generateSuccessfulLoginHeaders.html): after a user successfully logs in, run this function and attach the output headers to the `Response` object.
-    - [`extractUserIdFromRequestHeaders`](https://electrovir.github.io/auth-vir/functions/extractUserIdFromRequestHeaders.html): to verify an authenticated user `Request` object (make sure to properly attach all auth in the client by following the below [Client side](#client-side) guide).
+    - [`extractUserIdFromRequestHeaders`](https://electrovir.github.io/auth-vir/functions/extractUserIdFromRequestHeaders.html): to verify an authenticated user `Request` object (make sure to properly attach all auth in the client by following the below [Client / frontend side](#client--frontend-side) guide).
 
 Here's a full example of how to use all host / server / backend side auth functionality:
 
@@ -236,7 +236,7 @@ Use this on your client / frontend for storing and sending session authorization
 1. Send a login fetch request to your host / server / backend with `{credentials: 'include'}` set on the request.
 2. Pass the `Response` from step 1 into [`handleAuthResponse`](https://electrovir.github.io/auth-vir/functions/handleAuthResponse.html).
 3. In all subsequent fetch requests to the host / server / backend, set `{credentials: 'include'}` and include `{headers: {[csrfTokenHeaderName]: getCurrentCsrfToken()}}`.
-4. Upon user logout, call [`wipeCurrentCsrfToken()]`(https://electrovir.github.io/auth-vir/functions/wipeCurrentCsrfToken.html)
+4. Upon user logout, call [`wipeCurrentCsrfToken()`](https://electrovir.github.io/auth-vir/functions/wipeCurrentCsrfToken.html)
 
 Here's a full example of how to use all the client / frontend side auth functionality:
 
