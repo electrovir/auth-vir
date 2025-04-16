@@ -1,7 +1,16 @@
 {
     "name": "auth-vir",
-    "description": "",
-    "keywords": [],
+    "version": "0.0.1",
+    "description": "Auth made easy and secure via JWT cookies, CSRF tokens, and password hashing helpers.",
+    "keywords": [
+        "auth",
+        "jwt",
+        "csrf",
+        "hash",
+        "password",
+        "secure",
+        "cookie"
+    ],
     "homepage": "https://github.com/electrovir/auth-vir",
     "bugs": {
         "url": "https://github.com/electrovir/auth-vir/issues"
@@ -19,6 +28,7 @@
     "main": "src/index.ts",
     "module": "src/index.ts",
     "types": "src/index.ts",
+    "bin": "",
     "scripts": {
         "build": "virmator frontend build",
         "compile": "virmator compile",
@@ -34,18 +44,20 @@
         "@augment-vir/common": "^31.11.0",
         "date-vir": "^7.3.1",
         "hash-wasm": "^4.12.0",
-        "jose": "^6.0.10"
+        "jose": "^6.0.10",
+        "object-shape-tester": "^5.1.5",
+        "url-vir": "^2.1.3"
     },
     "devDependencies": {
         "@augment-vir/test": "^31.11.0",
         "@web/dev-server-esbuild": "^1.0.4",
-        "@web/test-runner": "^0.20.0",
+        "@web/test-runner": "^0.20.1",
         "@web/test-runner-commands": "^0.9.0",
         "@web/test-runner-playwright": "^0.11.0",
         "@web/test-runner-visual-regression": "^0.10.0",
         "istanbul-smart-text-reporter": "^1.1.5",
         "markdown-code-example-inserter": "^3.0.3",
-        "typedoc": "^0.28.1"
+        "typedoc": "^0.28.2"
     },
     "engines": {
         "node": ">=22"

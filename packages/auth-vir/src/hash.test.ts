@@ -1,7 +1,7 @@
 import {assert} from '@augment-vir/assert';
 import {randomString} from '@augment-vir/common';
 import {describe, it} from '@augment-vir/test';
-import {compareHash, hashPassword} from './hash.js';
+import {doesPasswordMatchHash, hashPassword} from './hash.js';
 
 describe(hashPassword.name, () => {
     it('hashes the password', async () => {
@@ -20,7 +20,7 @@ describe(hashPassword.name, () => {
     });
 });
 
-describe(compareHash.name, () => {
+describe(doesPasswordMatchHash.name, () => {
     it('successfully compares a password', async () => {
         const originalPassword = randomString();
         const hash = await hashPassword(originalPassword);
@@ -28,7 +28,7 @@ describe(compareHash.name, () => {
         assert.isDefined(hash);
 
         assert.isTrue(
-            await compareHash({
+            await doesPasswordMatchHash({
                 password: originalPassword,
                 hash,
             }),

@@ -17,6 +17,11 @@ export default [
              * Turn off or on specific rules. See {@link defineEslintConfig} for which plugins are
              * already enabled.
              */
+            /**
+             * This is turned of so we don't need a comment for it in the README example source
+             * code. This repo has no actual passwords.
+             */
+            'sonarjs/no-hardcoded-passwords': 'off',
         },
     },
 ];

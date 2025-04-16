@@ -1,4 +1,5 @@
 import {defineShape, isValidShape} from 'object-shape-tester';
+import {type generateCsrfToken} from './csrf-token.js';
 import {createJwt, CreateJwtParams, parseJwt, ParseJwtParams} from './jwt.js';
 
 /**
@@ -7,7 +8,13 @@ import {createJwt, CreateJwtParams, parseJwt, ParseJwtParams} from './jwt.js';
  * @category Internal
  */
 export const userJwtDataShape = defineShape({
+    /** The id from your database of the user you're authenticating. */
     userId: '',
+    /**
+     * CSRF token. This can be any cryptographically secure randomized string.
+     *
+     * Consider using {@link generateCsrfToken} to generate this.
+     */
     csrfToken: '',
 });
 
@@ -23,7 +30,7 @@ export type UserJwtData = typeof userJwtDataShape.runtimeType;
  * authenticates with the host (backend). This is used by host (backend) code to establish a new
  * user session. The output of this function should be sent to the client (frontend) for storage.
  *
- * @category Auth : Host
+ * @category Internal
  */
 export async function createUserJwt(
     data: Readonly<UserJwtData>,
@@ -37,7 +44,7 @@ export async function createUserJwt(
  * (backend) to a client (frontend) request. Do not use this function in client (frontend) code: it
  * requires JWT signing keys which should not be shared with any client (frontend).
  *
- * @category Auth : Host
+ * @category Internal
  */
 export async function parseUserJwt(
     encryptedJwt: string,

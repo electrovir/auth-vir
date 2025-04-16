@@ -5,7 +5,8 @@ import {bcrypt, bcryptVerify} from 'hash-wasm';
  * The output of this function is safe to store in a database for future credential comparisons.
  *
  * @category Auth : Host
- * @returns `undefined` if the password is too long. Otherwise, the hashed output.
+ * @returns `undefined` if the password is too long (and would be truncated by the bcrypt hashing
+ *   algorithm). Otherwise, the hashed output.
  * @see https://wikipedia.org/wiki/Bcrypt
  */
 export async function hashPassword(password: string): Promise<undefined | string> {
@@ -48,7 +49,7 @@ export function getByteLength(input: string): number {
  *
  * @category Auth : Host
  */
-export async function compareHash({
+export async function doesPasswordMatchHash({
     password,
     hash,
 }: {

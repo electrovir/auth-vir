@@ -50,7 +50,7 @@ export type CreateJwtParams = Readonly<{
      *
      * @see https://datatracker.ietf.org/doc/html/rfc7519#section-4.1.4
      */
-    expirationDuration: Readonly<AnyDuration>;
+    jwtDuration: Readonly<AnyDuration>;
 }> &
     Readonly<
         PartialWithUndefined<{
@@ -97,7 +97,7 @@ export async function createJwt<JwtData extends AnyObject = AnyObject>(
         .setIssuer(params.issuer)
         .setAudience(params.audience)
         .setExpirationTime(
-            toTimestamp(calculateRelativeDate(getNowInUtcTimezone(), params.expirationDuration)),
+            toTimestamp(calculateRelativeDate(getNowInUtcTimezone(), params.jwtDuration)),
         );
 
     if (params.notValidUntil) {

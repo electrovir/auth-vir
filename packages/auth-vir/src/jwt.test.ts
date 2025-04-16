@@ -64,10 +64,7 @@ describe(parseJwt.name, () => {
                     .setAudience(mockJwtParams.audience)
                     .setExpirationTime(
                         toTimestamp(
-                            calculateRelativeDate(
-                                getNowInUtcTimezone(),
-                                mockJwtParams.expirationDuration,
-                            ),
+                            calculateRelativeDate(getNowInUtcTimezone(), mockJwtParams.jwtDuration),
                         ),
                     )
                     .sign(jwtKeys.signingKey),
@@ -102,10 +99,7 @@ describe(parseJwt.name, () => {
                 .setAudience(mockJwtParams.audience)
                 .setExpirationTime(
                     toTimestamp(
-                        calculateRelativeDate(
-                            getNowInUtcTimezone(),
-                            mockJwtParams.expirationDuration,
-                        ),
+                        calculateRelativeDate(getNowInUtcTimezone(), mockJwtParams.jwtDuration),
                     ),
                 )
                 .sign(jwtKeys.signingKey),

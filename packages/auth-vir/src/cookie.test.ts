@@ -21,7 +21,7 @@ async function setCookieParams() {
                 ...mockJwtParams,
                 jwtKeys,
             },
-            cookieAge: {
+            cookieDuration: {
                 days: 20,
             },
             hostOrigin: 'https://example.com',

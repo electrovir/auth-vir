@@ -6,6 +6,7 @@ import {
     generateSuccessfulLoginHeaders,
     getCurrentCsrfToken,
     handleAuthResponse,
+    wipeCurrentCsrfToken,
 } from './auth.js';
 import {csrfTokenHeaderName} from './csrf-token.js';
 import {generateNewJwtKeys, parseJwtKeys} from './jwt-keys.js';
@@ -15,13 +16,30 @@ import {
     createMockLocalStorage,
 } from './mock-local-storage.js';
 
+describe(getCurrentCsrfToken.name, () => {
+    it('can override the localstorage key', () => {
+        const mockKey = 'mock-key';
+        const mockCsrfToken = 'token here';
+
+        const {localStorage} = createMockLocalStorage();
+        localStorage.setItem(mockKey, mockCsrfToken);
+
+        assert.strictEquals(
+            getCurrentCsrfToken({localStorage, csrfHeaderName: mockKey}),
+            mockCsrfToken,
+        );
+        wipeCurrentCsrfToken({localStorage, csrfHeaderName: mockKey});
+        assert.isUndefined(getCurrentCsrfToken({localStorage, csrfHeaderName: mockKey}));
+    });
+});
+
 describe(extractUserIdFromRequestHeaders.name, () => {
     const mockUserId = 'mock-id';
     async function setupHeaders() {
         const jwtKeys = await parseJwtKeys(await generateNewJwtKeys());
 
         const serverHeaders = await generateSuccessfulLoginHeaders(mockUserId, {
-            cookieAge: {days: 20},
+            cookieDuration: {days: 20},
             hostOrigin: 'https://www.example.com',
             jwtParams: {
                 ...mockJwtParams,

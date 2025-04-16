@@ -1,3 +1,4 @@
+import {check} from '@augment-vir/assert';
 import {safeMatch, type PartialWithUndefined} from '@augment-vir/common';
 import {convertDuration, type AnyDuration} from 'date-vir';
 import {parseUrl} from 'url-vir';
@@ -9,7 +10,7 @@ import {createUserJwt, parseUserJwt, UserJwtData} from './user-jwt.js';
  *
  * @category Internal
  */
-export type CookieConfig = {
+export type CookieParams = {
     /**
      * The origin of the host (backend) service that cookies will be included in all requests to.
      * This should be restricted to just your host (backend) origin for security purposes.
@@ -21,7 +22,7 @@ export type CookieConfig = {
      * The max duration of this cookie. Or, in other words, the max user session duration before
      * they're logged out.
      */
-    cookieAge: AnyDuration;
+    cookieDuration: AnyDuration;
     /**
      * All JWT parameters required for generating the encrypted JWT that will be embedded in the
      * Cookie. Note that all JWT keys contained herein should never shared with any frontend,
@@ -45,16 +46,19 @@ export type CookieConfig = {
  */
 export async function generateCookie(
     userJwtData: Readonly<UserJwtData>,
-    cookieConfig: Readonly<CookieConfig>,
+    cookieConfig: Readonly<CookieParams>,
 ) {
     return [
-        `auth=${await createUserJwt(userJwtData, cookieConfig.jwtParams)};`,
-        `Domain=${parseUrl(cookieConfig.hostOrigin).hostname};`,
-        'HttpOnly;',
-        'SameSite=Strict;',
-        `MAX-AGE=${convertDuration(cookieConfig.cookieAge, {seconds: true}).seconds};`,
+        `auth=${await createUserJwt(userJwtData, cookieConfig.jwtParams)}`,
+        `Domain=${parseUrl(cookieConfig.hostOrigin).hostname}`,
+        'HttpOnly',
+        'Path=/',
+        'SameSite=Strict',
+        `MAX-AGE=${convertDuration(cookieConfig.cookieDuration, {seconds: true}).seconds}`,
         cookieConfig.isDev ? '' : 'Secure',
-    ].join(' ');
+    ]
+        .filter(check.isTruthy)
+        .join('; ');
 }
 
 /**

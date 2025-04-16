@@ -13,5 +13,5 @@ export const csrfTokenHeaderName = 'csrf-token';
  * @category Internal
  */
 export function generateCsrfToken(): string {
-    return randomString(128);
+    return randomString(256);
 }

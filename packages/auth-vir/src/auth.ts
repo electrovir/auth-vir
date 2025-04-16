@@ -1,20 +1,26 @@
-import {CookieConfig, extractCookieJwt, generateCookie} from './cookie.js';
+import {CookieParams, extractCookieJwt, generateCookie} from './cookie.js';
 import {csrfTokenHeaderName, generateCsrfToken} from './csrf-token.js';
-import type {CreateJwtParams} from './jwt.js';
+import {ParseJwtParams} from './jwt.js';
 
-function readHeader(
-    headers: Record<string, string[] | undefined | string> | Headers,
-    headerName: string,
-): string | undefined {
+/**
+ * All possible headers container types supported by {@link extractUserIdFromRequestHeaders}.
+ *
+ * @category Internal
+ */
+export type HeaderContainer = Record<string, string[] | undefined | string | number> | Headers;
+
+function readHeader(headers: HeaderContainer, headerName: string): string | undefined {
     if (headers instanceof Headers) {
         return headers.get(headerName) || undefined;
     } else {
         const value = headers[headerName];
 
-        if (Array.isArray(value)) {
+        if (value == undefined) {
+            return undefined;
+        } else if (Array.isArray(value)) {
             return value[0];
         } else {
-            return value;
+            return String(value);
         }
     }
 }
@@ -28,8 +34,8 @@ function readHeader(
  * @returns The extracted user id or `undefined` if no valid auth headers exist.
  */
 export async function extractUserIdFromRequestHeaders(
-    headers: Record<string, string[] | undefined | string> | Headers,
-    jwtParams: Readonly<CreateJwtParams>,
+    headers: HeaderContainer,
+    jwtParams: Readonly<ParseJwtParams>,
 ): Promise<string | undefined> {
     try {
         const csrfToken = readHeader(headers, csrfTokenHeaderName);
@@ -58,7 +64,8 @@ export async function extractUserIdFromRequestHeaders(
  */
 export async function generateSuccessfulLoginHeaders(
     userId: string,
-    cookieConfig: Readonly<CookieConfig>,
+    /** The id from your database of the user you're authenticating. */
+    cookieConfig: Readonly<CookieParams>,
 ) {
     const csrfToken = generateCsrfToken();
 
@@ -75,9 +82,13 @@ export async function generateSuccessfulLoginHeaders(
 }
 
 /**
- * Set auth data on a client (frontend) after receiving an auth response from the host (backend).
+ * Store auth data on a client (frontend) after receiving an auth response from the host (backend).
+ * Specifically, this stores the CSRF token into local storage (which doesn't need to be a secret).
+ * Alternatively, if the given response failed, this will wipe the existing (if anyone) stored CSRF
+ * token.
  *
  * @category Auth : Client
+ * @throws Error if no CSRF token header is found.
  */
 export function handleAuthResponse(
     response: Readonly<Pick<Response, 'ok' | 'headers'>>,
@@ -88,21 +99,24 @@ export function handleAuthResponse(
          * @default globalThis.localStorage
          */
         localStorage?: Pick<Storage, 'setItem' | 'removeItem'>;
+        /** Override the default CSRF token header name. */
+        csrfHeaderName?: string;
     } = {},
 ) {
     if (!response.ok) {
         wipeCurrentCsrfToken(overrides);
         return;
     }
+    const headerName = overrides.csrfHeaderName || csrfTokenHeaderName;
 
-    const csrfToken = response.headers.get(csrfTokenHeaderName);
+    const csrfToken = response.headers.get(headerName);
 
     if (!csrfToken) {
         wipeCurrentCsrfToken(overrides);
         throw new Error('Did not receive any CSRF token.');
     }
 
-    (overrides.localStorage || globalThis.localStorage).setItem(csrfTokenHeaderName, csrfToken);
+    (overrides.localStorage || globalThis.localStorage).setItem(headerName, csrfToken);
 }
 
 /**
@@ -119,9 +133,15 @@ export function getCurrentCsrfToken(
          * @default globalThis.localStorage
          */
         localStorage?: Pick<Storage, 'getItem'>;
+        /** Override the default CSRF token header name. */
+        csrfHeaderName?: string;
     } = {},
-) {
-    return (overrides.localStorage || globalThis.localStorage).getItem(csrfTokenHeaderName);
+): string | undefined {
+    return (
+        (overrides.localStorage || globalThis.localStorage).getItem(
+            overrides.csrfHeaderName || csrfTokenHeaderName,
+        ) || undefined
+    );
 }
 
 /**
@@ -138,7 +158,11 @@ export function wipeCurrentCsrfToken(
          * @default globalThis.localStorage
          */
         localStorage?: Pick<Storage, 'removeItem'>;
+        /** Override the default CSRF token header name. */
+        csrfHeaderName?: string;
     } = {},
 ) {
-    return (overrides.localStorage || globalThis.localStorage).removeItem(csrfTokenHeaderName);
+    return (overrides.localStorage || globalThis.localStorage).removeItem(
+        overrides.csrfHeaderName || csrfTokenHeaderName,
+    );
 }

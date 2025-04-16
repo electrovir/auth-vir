@@ -1,24 +1,31 @@
 {
     "name": "@evir/demo",
+    "version": "0.0.1",
     "private": true,
     "license": "(MIT or CC0 1.0)",
     "type": "module",
     "scripts": {
         "compile": "virmator compile",
-        "docs": "virmator docs",
-        "start": "tsx src/index.ts",
-        "test": "virmator test node",
-        "test:coverage": "npm run test coverage",
-        "test:docs": "virmator docs check",
-        "test:update": "npm test update"
+        "start": "concurrently --colors -c green,blue --names backend,frontend \"tsx --watch src/server.ts\" \"virmator frontend\"",
+        "test": "exit 0",
+        "test:coverage": "npm test"
+    },
+    "dependencies": {
+        "@augment-vir/assert": "^31.11.0",
+        "@augment-vir/common": "^31.11.0",
+        "@rest-vir/define-service": "^0.13.0",
+        "@rest-vir/implement-service": "^0.13.0",
+        "@rest-vir/run-service": "^0.13.0",
+        "auth-vir": "*",
+        "concurrently": "^9.1.2",
+        "element-vir": "^25.3.0",
+        "vira": "^25.3.0"
+    },
+    "devDependencies": {
+        "typescript": "^5.8.3",
+        "vite": "^6.2.6"
     },
     "engines": {
         "node": ">=22"
-    },
-    "devDependencies": {
-        "@augment-vir/test": "^31.10.1"
-    },
-    "dependencies": {
-        "@augment-vir/assert": "^31.10.1"
     }
 }
