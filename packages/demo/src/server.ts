@@ -43,178 +43,172 @@ const endpointAuthConfig = {
     ],
 } as const satisfies Record<string, (keyof DemoService['endpoints'])[]>;
 
-const implementedService = implementService(
-    {
-        service: demoService,
-        customHeaders: [
-            csrfTokenHeaderName,
-        ],
-        async createContext({requestHeaders, endpointDefinition}) {
-            if (!endpointDefinition) {
+const implementedService = implementService({
+    service: demoService,
+    customHeaders: [
+        csrfTokenHeaderName,
+    ],
+    async createContext({requestHeaders, endpointDefinition}) {
+        if (!endpointDefinition) {
+            return {
+                reject: {
+                    statusCode: HttpStatus.NotFound,
+                },
+            };
+        }
+
+        /**
+         * This is not safe because it has not been checked yet that this user id is actually in the
+         * database.
+         *
+         * @deprecated Unsafe
+         */
+        const _unsafe_authenticatedUserId = await extractUserIdFromRequestHeaders(requestHeaders, {
+            ...jwtParams,
+            jwtKeys,
+        });
+
+        // eslint-disable-next-line sonarjs/deprecation, @typescript-eslint/no-deprecated
+        const authenticatedUser = _unsafe_authenticatedUserId
+            ? // eslint-disable-next-line sonarjs/deprecation, @typescript-eslint/no-deprecated
+              mockDatabase.users.find((user) => user.id === _unsafe_authenticatedUserId)
+            : undefined;
+
+        if (
+            authenticatedUser &&
+            check.hasValue(endpointAuthConfig.requiresUnauth, endpointDefinition.path)
+        ) {
+            return {
+                reject: {
+                    statusCode: HttpStatus.BadRequest,
+                },
+            };
+        } else if (
+            !authenticatedUser &&
+            check.hasValue(endpointAuthConfig.requiresAuth, endpointDefinition.path)
+        ) {
+            return {
+                reject: {
+                    statusCode: HttpStatus.Unauthorized,
+                },
+            };
+        }
+
+        return {
+            context: {
+                authenticatedUser,
+            },
+        };
+    },
+})({
+    endpoints: {
+        async '/login'({context, requestData, server}) {
+            if (context.authenticatedUser) {
                 return {
-                    reject: {
-                        statusCode: HttpStatus.NotFound,
-                    },
+                    statusCode: HttpStatus.BadRequest,
                 };
             }
 
-            /**
-             * This is not safe because it has not been checked yet that this user id is actually in
-             * the database.
-             *
-             * @deprecated Unsafe
-             */
-            const _unsafe_authenticatedUserId = await extractUserIdFromRequestHeaders(
-                requestHeaders,
-                {
-                    ...jwtParams,
-                    jwtKeys,
-                },
+            const userMatch = mockDatabase.users.find(
+                (user) => user.username === requestData.username,
             );
 
-            // eslint-disable-next-line sonarjs/deprecation, @typescript-eslint/no-deprecated
-            const authenticatedUser = _unsafe_authenticatedUserId
-                ? // eslint-disable-next-line sonarjs/deprecation, @typescript-eslint/no-deprecated
-                  mockDatabase.users.find((user) => user.id === _unsafe_authenticatedUserId)
-                : undefined;
-
             if (
-                authenticatedUser &&
-                check.hasValue(endpointAuthConfig.requiresUnauth, endpointDefinition.path)
+                !userMatch ||
+                !(await doesPasswordMatchHash({
+                    hash: userMatch.hashedPassword,
+                    password: requestData.password,
+                }))
             ) {
                 return {
-                    reject: {
-                        statusCode: HttpStatus.BadRequest,
-                    },
-                };
-            } else if (
-                !authenticatedUser &&
-                check.hasValue(endpointAuthConfig.requiresAuth, endpointDefinition.path)
-            ) {
-                return {
-                    reject: {
-                        statusCode: HttpStatus.Unauthorized,
-                    },
+                    statusCode: HttpStatus.Unauthorized,
                 };
             }
 
             return {
-                context: {
-                    authenticatedUser,
+                statusCode: HttpStatus.Ok,
+                responseData: {
+                    email: userMatch.email,
+                    name: userMatch.name,
+                    username: userMatch.username,
+                },
+                headers: await generateSuccessfulLoginHeaders(userMatch.id, {
+                    cookieDuration: {hours: 2},
+                    hostOrigin: server.serviceOrigin,
+                    jwtParams: {
+                        ...jwtParams,
+                        jwtKeys,
+                    },
+                    isDev: true,
+                }),
+            };
+        },
+        async '/sign-up'({context, requestData, server}) {
+            if (context.authenticatedUser) {
+                return {
+                    statusCode: HttpStatus.BadRequest,
+                };
+            }
+
+            const hashedPassword = await hashPassword(requestData.password);
+
+            if (!hashedPassword) {
+                return {
+                    statusCode: HttpStatus.BadRequest,
+                    responseErrorMessage: 'Password too long',
+                };
+            }
+
+            const newUser: MockUser = {
+                id: randomString(),
+                email: 'fake@example.com',
+                hashedPassword,
+                name: 'Demo User',
+                username: requestData.username,
+            };
+
+            mockDatabase.users.push(newUser);
+
+            return {
+                statusCode: HttpStatus.Ok,
+                responseData: {
+                    email: newUser.email,
+                    name: newUser.name,
+                    username: newUser.username,
+                },
+                headers: await generateSuccessfulLoginHeaders(newUser.id, {
+                    cookieDuration: {hours: 2},
+                    hostOrigin: server.serviceOrigin,
+                    jwtParams: {
+                        ...jwtParams,
+                        jwtKeys,
+                    },
+                    isDev: true,
+                }),
+            };
+        },
+        '/user'({context}) {
+            const userMatch = mockDatabase.users.find(
+                (user) => user.username === context.authenticatedUser?.username,
+            );
+
+            if (!context.authenticatedUser || !userMatch) {
+                return {
+                    statusCode: HttpStatus.Unauthorized,
+                };
+            }
+
+            return {
+                statusCode: HttpStatus.Ok,
+                responseData: {
+                    email: userMatch.email,
+                    name: userMatch.name,
+                    username: userMatch.username,
                 },
             };
         },
     },
-    {
-        endpoints: {
-            async '/login'({context, requestData, server}) {
-                if (context.authenticatedUser) {
-                    return {
-                        statusCode: HttpStatus.BadRequest,
-                    };
-                }
-
-                const userMatch = mockDatabase.users.find(
-                    (user) => user.username === requestData.username,
-                );
-
-                if (
-                    !userMatch ||
-                    !(await doesPasswordMatchHash({
-                        hash: userMatch.hashedPassword,
-                        password: requestData.password,
-                    }))
-                ) {
-                    return {
-                        statusCode: HttpStatus.Unauthorized,
-                    };
-                }
-
-                return {
-                    statusCode: HttpStatus.Ok,
-                    responseData: {
-                        email: userMatch.email,
-                        name: userMatch.name,
-                        username: userMatch.username,
-                    },
-                    headers: await generateSuccessfulLoginHeaders(userMatch.id, {
-                        cookieDuration: {hours: 2},
-                        hostOrigin: server.serviceOrigin,
-                        jwtParams: {
-                            ...jwtParams,
-                            jwtKeys,
-                        },
-                        isDev: true,
-                    }),
-                };
-            },
-            async '/sign-up'({context, requestData, server}) {
-                if (context.authenticatedUser) {
-                    return {
-                        statusCode: HttpStatus.BadRequest,
-                    };
-                }
-
-                const hashedPassword = await hashPassword(requestData.password);
-
-                if (!hashedPassword) {
-                    return {
-                        statusCode: HttpStatus.BadRequest,
-                        responseErrorMessage: 'Password too long',
-                    };
-                }
-
-                const newUser: MockUser = {
-                    id: randomString(),
-                    email: 'fake@example.com',
-                    hashedPassword,
-                    name: 'Demo User',
-                    username: requestData.username,
-                };
-
-                mockDatabase.users.push(newUser);
-
-                return {
-                    statusCode: HttpStatus.Ok,
-                    responseData: {
-                        email: newUser.email,
-                        name: newUser.name,
-                        username: newUser.username,
-                    },
-                    headers: await generateSuccessfulLoginHeaders(newUser.id, {
-                        cookieDuration: {hours: 2},
-                        hostOrigin: server.serviceOrigin,
-                        jwtParams: {
-                            ...jwtParams,
-                            jwtKeys,
-                        },
-                        isDev: true,
-                    }),
-                };
-            },
-            '/user'({context}) {
-                const userMatch = mockDatabase.users.find(
-                    (user) => user.username === context.authenticatedUser?.username,
-                );
-
-                if (!context.authenticatedUser || !userMatch) {
-                    return {
-                        statusCode: HttpStatus.Unauthorized,
-                    };
-                }
-
-                return {
-                    statusCode: HttpStatus.Ok,
-                    responseData: {
-                        email: userMatch.email,
-                        name: userMatch.name,
-                        username: userMatch.username,
-                    },
-                };
-            },
-        },
-    },
-);
+});
 
 await startService(implementedService, {
     workerCount: 1,

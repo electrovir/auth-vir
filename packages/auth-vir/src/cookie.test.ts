@@ -3,7 +3,7 @@ import {describe, it} from '@augment-vir/test';
 import {extractCookieJwt, generateCookie} from './cookie.js';
 import {generateNewJwtKeys, parseJwtKeys} from './jwt-keys.js';
 import {mockJwtParams} from './jwt.mock.js';
-import type {UserJwtData} from './user-jwt.js';
+import {type UserJwtData} from './user-jwt.js';
 
 async function setCookieParams() {
     const mockJwt: UserJwtData = {

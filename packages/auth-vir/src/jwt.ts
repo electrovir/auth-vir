@@ -1,5 +1,5 @@
 import {check} from '@augment-vir/assert';
-import type {AnyObject, PartialWithUndefined} from '@augment-vir/common';
+import {type AnyObject, type PartialWithUndefined} from '@augment-vir/common';
 import {
     calculateRelativeDate,
     createFullDateInUserTimezone,
@@ -9,7 +9,7 @@ import {
     type DateLike,
 } from 'date-vir';
 import {EncryptJWT, jwtDecrypt, jwtVerify, SignJWT} from 'jose';
-import {JwtKeys} from './jwt-keys.js';
+import {type JwtKeys} from './jwt-keys.js';
 
 const encryptionProtectedHeader = {alg: 'dir', enc: 'A256GCM'};
 const signingProtectedHeader = {alg: 'HS512'};

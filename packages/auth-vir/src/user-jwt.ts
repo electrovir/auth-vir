@@ -1,6 +1,6 @@
 import {defineShape, isValidShape} from 'object-shape-tester';
 import {type generateCsrfToken} from './csrf-token.js';
-import {createJwt, CreateJwtParams, parseJwt, ParseJwtParams} from './jwt.js';
+import {createJwt, type CreateJwtParams, parseJwt, type ParseJwtParams} from './jwt.js';
 
 /**
  * Shape definition and source of truth for {@link UserJwtData}.

@@ -2,8 +2,8 @@ import {check} from '@augment-vir/assert';
 import {safeMatch, type PartialWithUndefined} from '@augment-vir/common';
 import {convertDuration, type AnyDuration} from 'date-vir';
 import {parseUrl} from 'url-vir';
-import {CreateJwtParams, type ParseJwtParams} from './jwt.js';
-import {createUserJwt, parseUserJwt, UserJwtData} from './user-jwt.js';
+import {type CreateJwtParams, type ParseJwtParams} from './jwt.js';
+import {createUserJwt, parseUserJwt, type UserJwtData} from './user-jwt.js';
 
 /**
  * Parameters for {@link generateCookie}.

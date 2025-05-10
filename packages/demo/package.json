@@ -1,6 +1,6 @@
 {
     "name": "@evir/demo",
-    "version": "0.0.2",
+    "version": "0.0.3",
     "private": true,
     "license": "(MIT or CC0 1.0)",
     "type": "module",
@@ -11,19 +11,19 @@
         "test:coverage": "npm test"
     },
     "dependencies": {
-        "@augment-vir/assert": "^31.11.0",
-        "@augment-vir/common": "^31.11.0",
-        "@rest-vir/define-service": "^0.13.0",
-        "@rest-vir/implement-service": "^0.13.0",
-        "@rest-vir/run-service": "^0.13.0",
-        "auth-vir": "^0.0.2",
+        "@augment-vir/assert": "^31.17.1",
+        "@augment-vir/common": "^31.17.1",
+        "@rest-vir/define-service": "^0.18.1",
+        "@rest-vir/implement-service": "^0.18.1",
+        "@rest-vir/run-service": "^0.18.1",
+        "auth-vir": "^0.0.3",
         "concurrently": "^9.1.2",
         "element-vir": "^25.3.0",
         "vira": "^25.3.0"
     },
     "devDependencies": {
         "typescript": "^5.8.3",
-        "vite": "^6.2.6"
+        "vite": "^6.3.5"
     },
     "engines": {
         "node": ">=22"
