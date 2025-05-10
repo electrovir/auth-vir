@@ -28,7 +28,7 @@
     "main": "src/index.ts",
     "module": "src/index.ts",
     "types": "src/index.ts",
-    "bin": "",
+    "bin": "bin.js",
     "scripts": {
         "build": "virmator frontend build",
         "compile": "virmator compile",
