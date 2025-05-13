@@ -1,37 +1,53 @@
-import {bcrypt, bcryptVerify} from 'hash-wasm';
+import {
+    type AnyObject,
+    mergeDefinedProperties,
+    type PartialWithUndefined,
+} from '@augment-vir/common';
+import {argon2id, argon2Verify, type IArgon2Options} from 'hash-wasm';
 
 /**
- * Hashes a password using the bcrypt algorithm so passwords don't need to be stored in plain text.
- * The output of this function is safe to store in a database for future credential comparisons.
- *
- * @category Auth : Host
- * @returns `undefined` if the password is too long (and would be truncated by the bcrypt hashing
- *   algorithm). Otherwise, the hashed output.
- * @see https://wikipedia.org/wiki/Bcrypt
- */
-export async function hashPassword(password: string): Promise<undefined | string> {
-    if (willHashTruncate(password)) {
-        return undefined;
-    }
-
-    const salt = new Uint8Array(16);
-    globalThis.crypto.getRandomValues(salt);
-
-    return await bcrypt({
-        costFactor: 10,
-        password: password.normalize(),
-        salt,
-    });
-}
-
-/**
- * Checks if the given string will be truncated when passed through {@link hashPassword}. Passwords
- * longer than this should not be accepted.
+ * Default value for {@link HashPasswordOptions}.
  *
  * @category Internal
  */
-export function willHashTruncate(input: string): boolean {
-    return getByteLength(input) > 72;
+export const defaultHashOptions: HashPasswordOptions = {
+    hashLength: 32,
+    iterations: 256,
+    memorySize: 512,
+    parallelism: 1,
+};
+
+/**
+ * Options for {@link hashPassword}.
+ *
+ * @category Internal
+ */
+export type HashPasswordOptions = PartialWithUndefined<
+    Omit<IArgon2Options, 'outputType' | 'salt' | 'password' | 'secret'>
+>;
+
+/**
+ * Hashes a password using the Argon2id algorithm so passwords don't need to be stored in plain
+ * text. The output of this function is safe to store in a database for future credential
+ * comparisons.
+ *
+ * @category Auth : Host
+ * @returns The hashed password.
+ * @see https://en.wikipedia.org/wiki/Argon2
+ */
+export async function hashPassword(
+    password: string,
+    options: HashPasswordOptions = {},
+): Promise<string> {
+    const salt = globalThis.crypto.getRandomValues(new Uint8Array(16));
+
+    return await argon2id(
+        mergeDefinedProperties<AnyObject>(defaultHashOptions, options, {
+            outputType: 'encoded',
+            password: password.normalize(),
+            salt,
+        }) as IArgon2Options,
+    );
 }
 
 /**
@@ -44,7 +60,7 @@ export function getByteLength(input: string): number {
 }
 
 /**
- * Checks if the given password is a match by comparing it to its previously computed and stored
+ * Checks if the given password is a match by comparing it to the previously computed and stored
  * hash.
  *
  * @category Auth : Host
@@ -58,7 +74,7 @@ export async function doesPasswordMatchHash({
     /** The stored password hash for that user. */
     hash: string;
 }): Promise<boolean> {
-    return await bcryptVerify({
+    return await argon2Verify({
         hash,
         password,
     });
