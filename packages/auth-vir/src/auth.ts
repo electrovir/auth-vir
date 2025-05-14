@@ -1,4 +1,9 @@
-import {type CookieParams, extractCookieJwt, generateCookie} from './cookie.js';
+import {
+    clearAuthCookie,
+    type CookieParams,
+    extractCookieJwt,
+    generateAuthCookie,
+} from './cookie.js';
 import {csrfTokenHeaderName, generateCsrfToken} from './csrf-token.js';
 import {type ParseJwtParams} from './jwt.js';
 
@@ -63,14 +68,14 @@ export async function extractUserIdFromRequestHeaders(
  * @category Auth : Host
  */
 export async function generateSuccessfulLoginHeaders(
-    userId: string,
     /** The id from your database of the user you're authenticating. */
+    userId: string,
     cookieConfig: Readonly<CookieParams>,
 ) {
     const csrfToken = generateCsrfToken();
 
     return {
-        'set-cookie': await generateCookie(
+        'set-cookie': await generateAuthCookie(
             {
                 csrfToken,
                 userId,
@@ -78,6 +83,19 @@ export async function generateSuccessfulLoginHeaders(
             cookieConfig,
         ),
         [csrfTokenHeaderName]: csrfToken,
+    };
+}
+
+/**
+ * Used by host (backend) code to set headers on a response object when the user has logged out or
+ * failed to authorize.
+ *
+ * @category Auth : Host
+ */
+export function generateLogoutHeaders(...params: Parameters<typeof clearAuthCookie>) {
+    return {
+        'set-cookie': clearAuthCookie(...params),
+        [csrfTokenHeaderName]: 'redacted',
     };
 }
 

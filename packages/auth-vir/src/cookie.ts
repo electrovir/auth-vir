@@ -1,12 +1,13 @@
 import {check} from '@augment-vir/assert';
 import {safeMatch, type PartialWithUndefined} from '@augment-vir/common';
 import {convertDuration, type AnyDuration} from 'date-vir';
+import {type Primitive} from 'type-fest';
 import {parseUrl} from 'url-vir';
 import {type CreateJwtParams, type ParseJwtParams} from './jwt.js';
 import {createUserJwt, parseUserJwt, type UserJwtData} from './user-jwt.js';
 
 /**
- * Parameters for {@link generateCookie}.
+ * Parameters for {@link generateAuthCookie}.
  *
  * @category Internal
  */
@@ -29,6 +30,7 @@ export type CookieParams = {
      * client, etc.
      */
     jwtParams: Readonly<CreateJwtParams>;
+    cookieName?: string;
 } & PartialWithUndefined<{
     /**
      * Is set to `true` (which should only be done in development environments), the cookie will be
@@ -44,19 +46,69 @@ export type CookieParams = {
  *
  * @category Internal
  */
-export async function generateCookie(
+export async function generateAuthCookie(
     userJwtData: Readonly<UserJwtData>,
     cookieConfig: Readonly<CookieParams>,
+): Promise<string> {
+    return generateCookie({
+        [cookieConfig.cookieName || 'auth']: await createUserJwt(
+            userJwtData,
+            cookieConfig.jwtParams,
+        ),
+        Domain: parseUrl(cookieConfig.hostOrigin).hostname,
+        HttpOnly: true,
+        Path: '/',
+        SameSite: 'Strict',
+        'MAX-AGE': convertDuration(cookieConfig.cookieDuration, {seconds: true}).seconds,
+        Secure: !cookieConfig.isDev,
+    });
+}
+
+/**
+ * Generate a cookie value that will clear the previous auth cookie. Use this when signing out.
+ *
+ * @category Internal
+ */
+export function clearAuthCookie(
+    cookieConfig: Readonly<Pick<CookieParams, 'cookieName' | 'hostOrigin' | 'isDev'>>,
 ) {
-    return [
-        `auth=${await createUserJwt(userJwtData, cookieConfig.jwtParams)}`,
-        `Domain=${parseUrl(cookieConfig.hostOrigin).hostname}`,
-        'HttpOnly',
-        'Path=/',
-        'SameSite=Strict',
-        `MAX-AGE=${convertDuration(cookieConfig.cookieDuration, {seconds: true}).seconds}`,
-        cookieConfig.isDev ? '' : 'Secure',
-    ]
+    return generateCookie({
+        [cookieConfig.cookieName || 'auth']: 'redacted',
+        Domain: parseUrl(cookieConfig.hostOrigin).hostname,
+        HttpOnly: true,
+        Path: '/',
+        SameSite: 'Strict',
+        'MAX-AGE': 0,
+        Secure: !cookieConfig.isDev,
+    });
+}
+
+/**
+ * Generate a cookie string from a raw set of parameters.
+ *
+ * @category Internal
+ */
+export function generateCookie(
+    params: Readonly<Record<string, Exclude<Primitive, symbol>>>,
+): string {
+    return Object.entries(params)
+        .map(
+            ([
+                key,
+                value,
+            ]): string | undefined => {
+                if (value == undefined || value === false) {
+                    return undefined;
+                } else if (value === '' || value === true) {
+                    return key;
+                } else {
+                    return [
+                        key,
+                        value,
+                    ].join('=');
+                }
+            },
+        )
         .filter(check.isTruthy)
         .join('; ');
 }

@@ -1,0 +1,1 @@
+-   split adapters into separate packages

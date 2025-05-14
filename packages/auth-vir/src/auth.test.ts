@@ -3,6 +3,7 @@ import {omitObjectKeys} from '@augment-vir/common';
 import {describe, it} from '@augment-vir/test';
 import {
     extractUserIdFromRequestHeaders,
+    generateLogoutHeaders,
     generateSuccessfulLoginHeaders,
     getCurrentCsrfToken,
     handleAuthResponse,
@@ -221,5 +222,22 @@ describe(handleAuthResponse.name, () => {
         });
         handleAuthResponse({ok: true, headers});
         assert.strictEquals(getCurrentCsrfToken(), mockCsrfToken);
+    });
+});
+
+describe(generateLogoutHeaders.name, () => {
+    it('generates headers', () => {
+        assert.deepEquals(
+            generateLogoutHeaders({
+                hostOrigin: 'my-origin',
+                cookieName: 'my-name',
+                isDev: true,
+            }),
+            {
+                'csrf-token': 'redacted',
+                'set-cookie':
+                    'my-name=redacted; Domain=my-origin; HttpOnly; Path=/; SameSite=Strict; MAX-AGE=0',
+            },
+        );
     });
 });
