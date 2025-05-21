@@ -41,6 +41,7 @@ function readHeader(headers: HeaderContainer, headerName: string): string | unde
 export async function extractUserIdFromRequestHeaders(
     headers: HeaderContainer,
     jwtParams: Readonly<ParseJwtParams>,
+    cookieName?: string | undefined,
 ): Promise<string | undefined> {
     try {
         const csrfToken = readHeader(headers, csrfTokenHeaderName);
@@ -50,7 +51,7 @@ export async function extractUserIdFromRequestHeaders(
             return undefined;
         }
 
-        const jwt = await extractCookieJwt(cookie, jwtParams);
+        const jwt = await extractCookieJwt(cookie, jwtParams, cookieName);
 
         if (!jwt || jwt.csrfToken !== csrfToken) {
             return undefined;

@@ -122,8 +122,11 @@ export function generateCookie(
 export async function extractCookieJwt(
     rawCookie: string,
     jwtParams: Readonly<ParseJwtParams>,
+    cookieName: string = 'auth',
 ): Promise<undefined | UserJwtData> {
-    const [auth] = safeMatch(rawCookie, /auth=[^;]+(?:;|$)/);
+    const cookieRegExp = new RegExp(`${cookieName}=[^;]+(?:;|$)`);
+
+    const [auth] = safeMatch(rawCookie, cookieRegExp);
 
     if (!auth) {
         return undefined;
