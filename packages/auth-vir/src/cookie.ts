@@ -132,7 +132,7 @@ export async function extractCookieJwt(
         return undefined;
     }
 
-    const rawJwt = auth.replace('auth=', '').replace(';', '');
+    const rawJwt = auth.replace(`${cookieName}=`, '').replace(';', '');
 
     const jwt = await parseUserJwt(rawJwt, jwtParams);
 
