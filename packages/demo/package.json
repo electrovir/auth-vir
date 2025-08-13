@@ -11,19 +11,19 @@
         "test:coverage": "npm test"
     },
     "dependencies": {
-        "@augment-vir/assert": "^31.17.1",
-        "@augment-vir/common": "^31.17.1",
-        "@rest-vir/define-service": "^0.18.1",
-        "@rest-vir/implement-service": "^0.18.1",
-        "@rest-vir/run-service": "^0.18.1",
+        "@augment-vir/assert": "^31.32.2",
+        "@augment-vir/common": "^31.32.2",
+        "@rest-vir/define-service": "^1.0.0",
+        "@rest-vir/implement-service": "^1.0.0",
+        "@rest-vir/run-service": "^1.0.0",
         "auth-vir": "^1.2.1",
-        "concurrently": "^9.1.2",
-        "element-vir": "^25.3.0",
-        "vira": "^25.3.0"
+        "concurrently": "^9.2.0",
+        "element-vir": "^26.7.1",
+        "vira": "^26.7.1"
     },
     "devDependencies": {
-        "typescript": "^5.8.3",
-        "vite": "^6.3.5"
+        "typescript": "^5.9.2",
+        "vite": "^7.1.2"
     },
     "engines": {
         "node": ">=22"
