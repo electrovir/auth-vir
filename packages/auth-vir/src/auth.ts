@@ -64,6 +64,37 @@ export async function extractUserIdFromRequestHeaders(
 }
 
 /**
+ * Extract a user id from just the cookie, without CSRF token validation. This is _less secure_ than
+ * {@link extractUserIdFromRequestHeaders} as a result. This should only be used in rare
+ * circumstances where you cannot rely on client-side JavaScript to insert the CSRF token.
+ *
+ * @deprecated Prefer {@link extractUserIdFromRequestHeaders} instead: it is more secure.
+ */
+export async function extractUserIdFromCookieAlone(
+    headers: HeaderContainer,
+    jwtParams: Readonly<ParseJwtParams>,
+    cookieName?: string | undefined,
+): Promise<string | undefined> {
+    try {
+        const cookie = readHeader(headers, 'cookie');
+
+        if (!cookie) {
+            return undefined;
+        }
+
+        const jwt = await extractCookieJwt(cookie, jwtParams, cookieName);
+
+        if (!jwt) {
+            return undefined;
+        }
+
+        return jwt.userId;
+    } catch {
+        return undefined;
+    }
+}
+
+/**
  * Used by host (backend) code to set headers on a response object.
  *
  * @category Auth : Host

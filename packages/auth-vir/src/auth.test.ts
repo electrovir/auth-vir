@@ -2,6 +2,7 @@ import {assert} from '@augment-vir/assert';
 import {omitObjectKeys} from '@augment-vir/common';
 import {describe, it} from '@augment-vir/test';
 import {
+    extractUserIdFromCookieAlone,
     extractUserIdFromRequestHeaders,
     generateLogoutHeaders,
     generateSuccessfulLoginHeaders,
@@ -34,34 +35,34 @@ describe(getCurrentCsrfToken.name, () => {
     });
 });
 
+const mockUserId = 'mock-id';
+async function setupHeaders() {
+    const jwtKeys = await parseJwtKeys(await generateNewJwtKeys());
+
+    const serverHeaders = await generateSuccessfulLoginHeaders(mockUserId, {
+        cookieDuration: {days: 20},
+        hostOrigin: 'https://www.example.com',
+        jwtParams: {
+            ...mockJwtParams,
+            jwtKeys,
+        },
+    });
+
+    const clientHeaders = {
+        cookie: serverHeaders['set-cookie'],
+        [csrfTokenHeaderName]: serverHeaders['csrf-token'],
+    };
+
+    return {
+        headers: clientHeaders,
+        jwtParams: {
+            ...mockJwtParams,
+            jwtKeys,
+        },
+    };
+}
+
 describe(extractUserIdFromRequestHeaders.name, () => {
-    const mockUserId = 'mock-id';
-    async function setupHeaders() {
-        const jwtKeys = await parseJwtKeys(await generateNewJwtKeys());
-
-        const serverHeaders = await generateSuccessfulLoginHeaders(mockUserId, {
-            cookieDuration: {days: 20},
-            hostOrigin: 'https://www.example.com',
-            jwtParams: {
-                ...mockJwtParams,
-                jwtKeys,
-            },
-        });
-
-        const clientHeaders = {
-            cookie: serverHeaders['set-cookie'],
-            [csrfTokenHeaderName]: serverHeaders['csrf-token'],
-        };
-
-        return {
-            headers: clientHeaders,
-            jwtParams: {
-                ...mockJwtParams,
-                jwtKeys,
-            },
-        };
-    }
-
     it('works on valid auth', async () => {
         const {headers, jwtParams} = await setupHeaders();
 
@@ -160,6 +161,78 @@ describe(extractUserIdFromRequestHeaders.name, () => {
 
         assert.isUndefined(
             await extractUserIdFromRequestHeaders(
+                {
+                    ...headers,
+                    cookie,
+                },
+                jwtParams,
+            ),
+        );
+    });
+});
+
+// eslint-disable-next-line @typescript-eslint/no-deprecated
+describe(extractUserIdFromCookieAlone.name, () => {
+    it('rejects missing cookie', async () => {
+        const {headers, jwtParams} = await setupHeaders();
+
+        assert.isUndefined(
+            // eslint-disable-next-line @typescript-eslint/no-deprecated
+            await extractUserIdFromCookieAlone(omitObjectKeys(headers, ['cookie']), jwtParams),
+        );
+    });
+    it('accepts missing CSRF token', async () => {
+        const {headers, jwtParams} = await setupHeaders();
+
+        assert.strictEquals(
+            // eslint-disable-next-line @typescript-eslint/no-deprecated
+            await extractUserIdFromCookieAlone(
+                omitObjectKeys(headers, [csrfTokenHeaderName]),
+                jwtParams,
+            ),
+            mockUserId,
+        );
+    });
+    it('accepts cookie and CSRF token', async () => {
+        const {headers, jwtParams} = await setupHeaders();
+
+        assert.strictEquals(
+            // eslint-disable-next-line @typescript-eslint/no-deprecated
+            await extractUserIdFromCookieAlone(headers, jwtParams),
+            mockUserId,
+        );
+    });
+    it('rejects invalid JWT', async () => {
+        const {headers, jwtParams} = await setupHeaders();
+
+        const cookie = [
+            `auth=asdf;`,
+            'HttpOnly;',
+            'SameSite=Strict;',
+        ].join(' ');
+
+        assert.isUndefined(
+            // eslint-disable-next-line @typescript-eslint/no-deprecated
+            await extractUserIdFromCookieAlone(
+                {
+                    ...headers,
+                    cookie,
+                },
+                jwtParams,
+            ),
+        );
+    });
+    it('rejects invalid cookie', async () => {
+        const {headers, jwtParams} = await setupHeaders();
+
+        const cookie = [
+            'HttpOnly;',
+            'SameSite=Strict;',
+        ].join(' ');
+
+        assert.isUndefined(
+            // eslint-disable-next-line @typescript-eslint/no-deprecated
+            await extractUserIdFromCookieAlone(
                 {
                     ...headers,
                     cookie,

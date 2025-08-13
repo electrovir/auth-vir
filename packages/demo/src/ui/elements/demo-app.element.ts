@@ -13,15 +13,7 @@ import {
     handleAuthResponse,
     wipeCurrentCsrfToken,
 } from 'auth-vir';
-import {
-    asyncProp,
-    css,
-    defineElementNoInputs,
-    html,
-    listen,
-    nothing,
-    type AsyncProp,
-} from 'element-vir';
+import {asyncProp, css, defineElement, html, listen, nothing, type AsyncProp} from 'element-vir';
 import {
     LoaderAnimated24Icon,
     ViraButton,
@@ -114,7 +106,7 @@ enum LoginStatus {
     LoggingIn = 'logging-in',
 }
 
-export const DemoApp = defineElementNoInputs({
+export const DemoApp = defineElement()({
     tagName: 'demo-app',
     styles: css`
         :host {

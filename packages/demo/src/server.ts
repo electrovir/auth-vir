@@ -68,9 +68,9 @@ const implementedService = implementService({
             jwtKeys,
         });
 
-        // eslint-disable-next-line sonarjs/deprecation, @typescript-eslint/no-deprecated
+        // eslint-disable-next-line @typescript-eslint/no-deprecated
         const authenticatedUser = _unsafe_authenticatedUserId
-            ? // eslint-disable-next-line sonarjs/deprecation, @typescript-eslint/no-deprecated
+            ? // eslint-disable-next-line @typescript-eslint/no-deprecated
               mockDatabase.users.find((user) => user.id === _unsafe_authenticatedUserId)
             : undefined;
 

@@ -87,7 +87,7 @@ export async function createJwt<JwtData extends AnyObject = AnyObject>(
     data: JwtData,
     params: Readonly<CreateJwtParams>,
 ): Promise<string> {
-    const rawJwt = new SignJWT({data: data})
+    const rawJwt = new SignJWT({data})
         .setProtectedHeader(signingProtectedHeader)
         .setIssuedAt(
             params.issuedAt
