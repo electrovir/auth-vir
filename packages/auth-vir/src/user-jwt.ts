@@ -1,4 +1,4 @@
-import {defineShape, isValidShape} from 'object-shape-tester';
+import {checkValidShape, defineShape} from 'object-shape-tester';
 import {type generateCsrfToken} from './csrf-token.js';
 import {createJwt, type CreateJwtParams, parseJwt, type ParseJwtParams} from './jwt.js';
 
@@ -52,7 +52,7 @@ export async function parseUserJwt(
 ): Promise<UserJwtData | undefined> {
     const parsed = await parseJwt(encryptedJwt, params);
 
-    if (!isValidShape(parsed, userJwtDataShape)) {
+    if (!checkValidShape(parsed, userJwtDataShape)) {
         throw new TypeError('Verified jwt has wrong data.');
     }
 
