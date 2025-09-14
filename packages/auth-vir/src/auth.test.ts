@@ -11,8 +11,8 @@ import {
     wipeCurrentCsrfToken,
 } from './auth.js';
 import {csrfTokenHeaderName} from './csrf-token.js';
-import {generateNewJwtKeys, parseJwtKeys} from './jwt-keys.js';
-import {mockJwtParams} from './jwt.mock.js';
+import {generateNewJwtKeys, parseJwtKeys} from './jwt/jwt-keys.js';
+import {mockJwtParams} from './jwt/jwt.mock.js';
 import {
     createEmptyMockLocalStorageAccessRecord,
     createMockLocalStorage,

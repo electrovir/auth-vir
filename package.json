@@ -26,7 +26,7 @@
         "publish": "virmator publish npm run test:all",
         "start": "npm start --workspace @evir/demo",
         "test": "mono-vir for-each-async npm run test",
-        "test:all": "npm run compile && concurrently --colors --kill-others-on-fail -c auto --names tests,spelling,format,docs,deps,lint \"npm run test:coverage\" \"npm run test:spelling\" \"npm run test:format\" \"npm run test:docs\" \"npm run test:deps\" \"npm run test:lint\"",
+        "test:all": "npm run compile && runstorm --names tests,spelling,format,docs,deps,lint \"npm run test:coverage\" \"npm run test:spelling\" \"npm run test:format\" \"npm run test:docs\" \"npm run test:deps\" \"npm run test:lint\"",
         "test:coverage": "mono-vir for-each-async npm run test:coverage",
         "test:deps": "virmator deps check",
         "test:docs": "virmator docs check",
@@ -64,6 +64,7 @@
         "prettier-plugin-packagejson": "^2.5.19",
         "prettier-plugin-sort-json": "^4.1.1",
         "prettier-plugin-toml": "^2.0.6",
+        "runstorm": "^0.6.2",
         "typescript-eslint": "^8.43.0",
         "virmator": "^14.0.3"
     },

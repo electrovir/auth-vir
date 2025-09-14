@@ -1,9 +1,9 @@
 import {assert} from '@augment-vir/assert';
 import {describe, it} from '@augment-vir/test';
 import {clearAuthCookie, extractCookieJwt, generateAuthCookie} from './cookie.js';
-import {generateNewJwtKeys, parseJwtKeys} from './jwt-keys.js';
-import {mockJwtParams} from './jwt.mock.js';
-import {type UserJwtData} from './user-jwt.js';
+import {generateNewJwtKeys, parseJwtKeys} from './jwt/jwt-keys.js';
+import {mockJwtParams} from './jwt/jwt.mock.js';
+import {type UserJwtData} from './jwt/user-jwt.js';
 
 async function getCookieParams() {
     const mockJwt: UserJwtData = {

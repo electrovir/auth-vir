@@ -5,7 +5,7 @@ import {
     generateAuthCookie,
 } from './cookie.js';
 import {csrfTokenHeaderName, generateCsrfToken} from './csrf-token.js';
-import {type ParseJwtParams} from './jwt.js';
+import {type ParseJwtParams} from './jwt/jwt.js';
 
 /**
  * All possible headers container types supported by {@link extractUserIdFromRequestHeaders}.

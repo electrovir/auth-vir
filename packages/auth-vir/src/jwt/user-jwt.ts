@@ -1,5 +1,5 @@
 import {checkValidShape, defineShape} from 'object-shape-tester';
-import {type generateCsrfToken} from './csrf-token.js';
+import {type generateCsrfToken} from '../csrf-token.js';
 import {createJwt, type CreateJwtParams, parseJwt, type ParseJwtParams} from './jwt.js';
 
 /**
