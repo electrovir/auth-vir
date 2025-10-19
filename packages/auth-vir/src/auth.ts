@@ -1,10 +1,13 @@
+import {type FullDate, type UtcTimezone} from 'date-vir';
 import {
+    AuthCookieName,
     clearAuthCookie,
     type CookieParams,
     extractCookieJwt,
     generateAuthCookie,
 } from './cookie.js';
-import {csrfTokenHeaderName, generateCsrfToken} from './csrf-token.js';
+import {generateCsrfToken} from './csrf-token.js';
+import {AuthHeaderName} from './headers.js';
 import {type ParseJwtParams} from './jwt/jwt.js';
 
 /**
@@ -31,6 +34,17 @@ function readHeader(headers: HeaderContainer, headerName: string): string | unde
 }
 
 /**
+ * Output from {@link extractUserIdFromRequestHeaders}.
+ *
+ * @category Internal
+ */
+export type UserIdResult<UserId extends string | number> = {
+    userId: UserId;
+    jwtExpiration: FullDate<UtcTimezone>;
+    cookieName: string;
+};
+
+/**
  * Extract the user id from a request by checking both the request cookie and CSRF token. This is
  * used by host (backend) code to help verify a request. After extracting the user id using this,
  * you should compare it to users stored in your database.
@@ -38,13 +52,13 @@ function readHeader(headers: HeaderContainer, headerName: string): string | unde
  * @category Auth : Host
  * @returns The extracted user id or `undefined` if no valid auth headers exist.
  */
-export async function extractUserIdFromRequestHeaders(
+export async function extractUserIdFromRequestHeaders<UserId extends string | number>(
     headers: HeaderContainer,
     jwtParams: Readonly<ParseJwtParams>,
-    cookieName?: string | undefined,
-): Promise<string | undefined> {
+    cookieName: string = AuthCookieName.Auth,
+): Promise<Readonly<UserIdResult<UserId>> | undefined> {
     try {
-        const csrfToken = readHeader(headers, csrfTokenHeaderName);
+        const csrfToken = readHeader(headers, AuthHeaderName.CsrfToken);
         const cookie = readHeader(headers, 'cookie');
 
         if (!cookie || !csrfToken) {
@@ -53,11 +67,15 @@ export async function extractUserIdFromRequestHeaders(
 
         const jwt = await extractCookieJwt(cookie, jwtParams, cookieName);
 
-        if (!jwt || jwt.csrfToken !== csrfToken) {
+        if (!jwt || jwt.data.csrfToken !== csrfToken) {
             return undefined;
         }
 
-        return jwt.userId;
+        return {
+            userId: jwt.data.userId as UserId,
+            jwtExpiration: jwt.jwtExpiration,
+            cookieName,
+        };
     } catch {
         return undefined;
     }
@@ -70,11 +88,11 @@ export async function extractUserIdFromRequestHeaders(
  *
  * @deprecated Prefer {@link extractUserIdFromRequestHeaders} instead: it is more secure.
  */
-export async function extractUserIdFromCookieAlone(
+export async function insecureExtractUserIdFromCookieAlone<UserId extends string | number>(
     headers: HeaderContainer,
     jwtParams: Readonly<ParseJwtParams>,
-    cookieName?: string | undefined,
-): Promise<string | undefined> {
+    cookieName: string = AuthCookieName.Auth,
+): Promise<Readonly<UserIdResult<UserId>> | undefined> {
     try {
         const cookie = readHeader(headers, 'cookie');
 
@@ -88,7 +106,11 @@ export async function extractUserIdFromCookieAlone(
             return undefined;
         }
 
-        return jwt.userId;
+        return {
+            userId: jwt.data.userId as UserId,
+            jwtExpiration: jwt.jwtExpiration,
+            cookieName,
+        };
     } catch {
         return undefined;
     }
@@ -101,9 +123,12 @@ export async function extractUserIdFromCookieAlone(
  */
 export async function generateSuccessfulLoginHeaders(
     /** The id from your database of the user you're authenticating. */
-    userId: string,
+    userId: string | number,
     cookieConfig: Readonly<CookieParams>,
-) {
+): Promise<{
+    'set-cookie': string;
+    [AuthHeaderName.CsrfToken]: string;
+}> {
     const csrfToken = generateCsrfToken();
 
     return {
@@ -114,7 +139,7 @@ export async function generateSuccessfulLoginHeaders(
             },
             cookieConfig,
         ),
-        [csrfTokenHeaderName]: csrfToken,
+        [AuthHeaderName.CsrfToken]: csrfToken,
     };
 }
 
@@ -127,7 +152,7 @@ export async function generateSuccessfulLoginHeaders(
 export function generateLogoutHeaders(...params: Parameters<typeof clearAuthCookie>) {
     return {
         'set-cookie': clearAuthCookie(...params),
-        [csrfTokenHeaderName]: 'redacted',
+        [AuthHeaderName.CsrfToken]: 'redacted',
     };
 }
 
@@ -157,7 +182,7 @@ export function handleAuthResponse(
         wipeCurrentCsrfToken(overrides);
         return;
     }
-    const headerName = overrides.csrfHeaderName || csrfTokenHeaderName;
+    const headerName = overrides.csrfHeaderName || AuthHeaderName.CsrfToken;
 
     const csrfToken = response.headers.get(headerName);
 
@@ -189,7 +214,7 @@ export function getCurrentCsrfToken(
 ): string | undefined {
     return (
         (overrides.localStorage || globalThis.localStorage).getItem(
-            overrides.csrfHeaderName || csrfTokenHeaderName,
+            overrides.csrfHeaderName || AuthHeaderName.CsrfToken,
         ) || undefined
     );
 }
@@ -213,6 +238,6 @@ export function wipeCurrentCsrfToken(
     } = {},
 ) {
     return (overrides.localStorage || globalThis.localStorage).removeItem(
-        overrides.csrfHeaderName || csrfTokenHeaderName,
+        overrides.csrfHeaderName || AuthHeaderName.CsrfToken,
     );
 }

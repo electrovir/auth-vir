@@ -3,7 +3,7 @@ import {randomString} from '@augment-vir/common';
 import {HttpStatus, implementService} from '@rest-vir/implement-service';
 import {startService} from '@rest-vir/run-service';
 import {
-    csrfTokenHeaderName,
+    AuthHeaderName,
     doesPasswordMatchHash,
     extractUserIdFromRequestHeaders,
     generateNewJwtKeys,
@@ -46,7 +46,7 @@ const endpointAuthConfig = {
 const implementedService = implementService({
     service: demoService,
     customHeaders: [
-        csrfTokenHeaderName,
+        AuthHeaderName.CsrfToken,
     ],
     async createContext({requestHeaders, endpointDefinition}) {
         if (!endpointDefinition) {
@@ -63,15 +63,18 @@ const implementedService = implementService({
          *
          * @deprecated Unsafe
          */
-        const _unsafe_authenticatedUserId = await extractUserIdFromRequestHeaders(requestHeaders, {
-            ...jwtParams,
-            jwtKeys,
-        });
+        const _unsafe_authenticatedUserResult = await extractUserIdFromRequestHeaders(
+            requestHeaders,
+            {
+                ...jwtParams,
+                jwtKeys,
+            },
+        );
 
         // eslint-disable-next-line @typescript-eslint/no-deprecated
-        const authenticatedUser = _unsafe_authenticatedUserId
+        const authenticatedUser = _unsafe_authenticatedUserResult
             ? // eslint-disable-next-line @typescript-eslint/no-deprecated
-              mockDatabase.users.find((user) => user.id === _unsafe_authenticatedUserId)
+              mockDatabase.users.find((user) => user.id === _unsafe_authenticatedUserResult.userId)
             : undefined;
 
         if (

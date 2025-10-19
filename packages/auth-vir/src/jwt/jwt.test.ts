@@ -1,4 +1,5 @@
 import {assert, assertWrap} from '@augment-vir/assert';
+import {wait} from '@augment-vir/common';
 import {describe, it} from '@augment-vir/test';
 import {calculateRelativeDate, getNowInUtcTimezone, toTimestamp} from 'date-vir';
 import {EncryptJWT, SignJWT} from 'jose';
@@ -146,16 +147,18 @@ describe(parseJwt.name, () => {
         const jwtKeys = await parseJwtKeys(await generateNewJwtKeys());
 
         assert.deepEquals(
-            await parseJwt(
-                await createJwt(mockData, {
-                    ...mockJwtParams,
-                    jwtKeys,
-                }),
-                {
-                    ...mockJwtParams,
-                    jwtKeys,
-                },
-            ),
+            (
+                await parseJwt(
+                    await createJwt(mockData, {
+                        ...mockJwtParams,
+                        jwtKeys,
+                    }),
+                    {
+                        ...mockJwtParams,
+                        jwtKeys,
+                    },
+                )
+            ).data,
             mockData,
         );
     });
@@ -181,6 +184,34 @@ describe(parseJwt.name, () => {
                 ),
             {
                 matchMessage: '"iat" claim timestamp check failed',
+            },
+        );
+    });
+    it('fails to parse an expired JWT', async () => {
+        const mockData = {
+            mock: 'data',
+        };
+
+        const jwtKeys = await parseJwtKeys(await generateNewJwtKeys());
+
+        const jwt = await createJwt(mockData, {
+            ...mockJwtParams,
+            jwtKeys,
+            jwtDuration: {
+                seconds: 1,
+            },
+        });
+
+        await wait({seconds: 2});
+
+        await assert.throws(
+            async () =>
+                await parseJwt(jwt, {
+                    ...mockJwtParams,
+                    jwtKeys,
+                }),
+            {
+                matchMessage: 'JWT expired',
             },
         );
     });

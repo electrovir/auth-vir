@@ -8,7 +8,7 @@ import {
 } from '@augment-vir/common';
 import {generateApi, mapServiceDevPort} from '@rest-vir/define-service';
 import {
-    csrfTokenHeaderName,
+    AuthHeaderName,
     getCurrentCsrfToken,
     handleAuthResponse,
     wipeCurrentCsrfToken,
@@ -51,7 +51,7 @@ async function loadUser(
         const output = await api.endpoints['/user'].fetch({
             options: {
                 headers: {
-                    [csrfTokenHeaderName]: csrfToken,
+                    [AuthHeaderName.CsrfToken]: csrfToken,
                 },
             },
         });
@@ -75,7 +75,7 @@ export async function connectToDemoApi(
                 const csrfToken = getCurrentCsrfToken();
                 const extraHeaders = csrfToken
                     ? {
-                          [csrfTokenHeaderName]: csrfToken,
+                          [AuthHeaderName.CsrfToken]: csrfToken,
                       }
                     : {};
 

@@ -1,16 +1,18 @@
+/* eslint-disable @typescript-eslint/no-deprecated */
+
 import {assert} from '@augment-vir/assert';
 import {omitObjectKeys} from '@augment-vir/common';
 import {describe, it} from '@augment-vir/test';
 import {
-    extractUserIdFromCookieAlone,
     extractUserIdFromRequestHeaders,
     generateLogoutHeaders,
     generateSuccessfulLoginHeaders,
     getCurrentCsrfToken,
     handleAuthResponse,
+    insecureExtractUserIdFromCookieAlone,
     wipeCurrentCsrfToken,
 } from './auth.js';
-import {csrfTokenHeaderName} from './csrf-token.js';
+import {AuthHeaderName} from './headers.js';
 import {generateNewJwtKeys, parseJwtKeys} from './jwt/jwt-keys.js';
 import {mockJwtParams} from './jwt/jwt.mock.js';
 import {
@@ -50,7 +52,7 @@ async function setupHeaders() {
 
     const clientHeaders = {
         cookie: serverHeaders['set-cookie'],
-        [csrfTokenHeaderName]: serverHeaders['csrf-token'],
+        [AuthHeaderName.CsrfToken]: serverHeaders[AuthHeaderName.CsrfToken],
     };
 
     return {
@@ -66,19 +68,24 @@ describe(extractUserIdFromRequestHeaders.name, () => {
     it('works on valid auth', async () => {
         const {headers, jwtParams} = await setupHeaders();
 
-        assert.strictEquals(await extractUserIdFromRequestHeaders(headers, jwtParams), mockUserId);
+        assert.strictEquals(
+            (await extractUserIdFromRequestHeaders(headers, jwtParams))?.userId,
+            mockUserId,
+        );
     });
     it('works on valid auth with an array header', async () => {
         const {headers, jwtParams} = await setupHeaders();
 
         assert.strictEquals(
-            await extractUserIdFromRequestHeaders(
-                {
-                    cookie: headers.cookie,
-                    [csrfTokenHeaderName]: [headers[csrfTokenHeaderName]],
-                },
-                jwtParams,
-            ),
+            (
+                await extractUserIdFromRequestHeaders(
+                    {
+                        cookie: headers.cookie,
+                        [AuthHeaderName.CsrfToken]: [headers[AuthHeaderName.CsrfToken]],
+                    },
+                    jwtParams,
+                )
+            )?.userId,
             mockUserId,
         );
     });
@@ -88,7 +95,7 @@ describe(extractUserIdFromRequestHeaders.name, () => {
         const headersObject = new Headers(headers);
 
         assert.strictEquals(
-            await extractUserIdFromRequestHeaders(headersObject, jwtParams),
+            (await extractUserIdFromRequestHeaders(headersObject, jwtParams))?.userId,
             mockUserId,
         );
     });
@@ -114,7 +121,7 @@ describe(extractUserIdFromRequestHeaders.name, () => {
 
         assert.isUndefined(
             await extractUserIdFromRequestHeaders(
-                omitObjectKeys(headers, [csrfTokenHeaderName]),
+                omitObjectKeys(headers, [AuthHeaderName.CsrfToken]),
                 jwtParams,
             ),
         );
@@ -126,7 +133,7 @@ describe(extractUserIdFromRequestHeaders.name, () => {
             await extractUserIdFromRequestHeaders(
                 {
                     ...headers,
-                    [csrfTokenHeaderName]: 'invalid token',
+                    [AuthHeaderName.CsrfToken]: 'invalid token',
                 },
                 jwtParams,
             ),
@@ -171,25 +178,27 @@ describe(extractUserIdFromRequestHeaders.name, () => {
     });
 });
 
-// eslint-disable-next-line @typescript-eslint/no-deprecated
-describe(extractUserIdFromCookieAlone.name, () => {
+describe(insecureExtractUserIdFromCookieAlone.name, () => {
     it('rejects missing cookie', async () => {
         const {headers, jwtParams} = await setupHeaders();
 
         assert.isUndefined(
-            // eslint-disable-next-line @typescript-eslint/no-deprecated
-            await extractUserIdFromCookieAlone(omitObjectKeys(headers, ['cookie']), jwtParams),
+            await insecureExtractUserIdFromCookieAlone(
+                omitObjectKeys(headers, ['cookie']),
+                jwtParams,
+            ),
         );
     });
     it('accepts missing CSRF token', async () => {
         const {headers, jwtParams} = await setupHeaders();
 
         assert.strictEquals(
-            // eslint-disable-next-line @typescript-eslint/no-deprecated
-            await extractUserIdFromCookieAlone(
-                omitObjectKeys(headers, [csrfTokenHeaderName]),
-                jwtParams,
-            ),
+            (
+                await insecureExtractUserIdFromCookieAlone(
+                    omitObjectKeys(headers, [AuthHeaderName.CsrfToken]),
+                    jwtParams,
+                )
+            )?.userId,
             mockUserId,
         );
     });
@@ -197,8 +206,7 @@ describe(extractUserIdFromCookieAlone.name, () => {
         const {headers, jwtParams} = await setupHeaders();
 
         assert.strictEquals(
-            // eslint-disable-next-line @typescript-eslint/no-deprecated
-            await extractUserIdFromCookieAlone(headers, jwtParams),
+            (await insecureExtractUserIdFromCookieAlone(headers, jwtParams))?.userId,
             mockUserId,
         );
     });
@@ -212,8 +220,7 @@ describe(extractUserIdFromCookieAlone.name, () => {
         ].join(' ');
 
         assert.isUndefined(
-            // eslint-disable-next-line @typescript-eslint/no-deprecated
-            await extractUserIdFromCookieAlone(
+            await insecureExtractUserIdFromCookieAlone(
                 {
                     ...headers,
                     cookie,
@@ -231,8 +238,7 @@ describe(extractUserIdFromCookieAlone.name, () => {
         ].join(' ');
 
         assert.isUndefined(
-            // eslint-disable-next-line @typescript-eslint/no-deprecated
-            await extractUserIdFromCookieAlone(
+            await insecureExtractUserIdFromCookieAlone(
                 {
                     ...headers,
                     cookie,
@@ -256,8 +262,8 @@ describe(handleAuthResponse.name, () => {
         assert.deepEquals(accessRecord, {
             ...createEmptyMockLocalStorageAccessRecord(),
             removeItem: [
-                csrfTokenHeaderName,
-                csrfTokenHeaderName,
+                AuthHeaderName.CsrfToken,
+                AuthHeaderName.CsrfToken,
             ],
         });
     });
@@ -275,14 +281,14 @@ describe(handleAuthResponse.name, () => {
         const {accessRecord, localStorage} = createMockLocalStorage();
 
         const headers = new Headers({
-            [csrfTokenHeaderName]: mockCsrfToken,
+            [AuthHeaderName.CsrfToken]: mockCsrfToken,
         });
 
         handleAuthResponse({ok: true, headers}, {localStorage});
         assert.deepEquals(accessRecord, {
             ...createEmptyMockLocalStorageAccessRecord(),
             setItem: [
-                {key: csrfTokenHeaderName, value: mockCsrfToken},
+                {key: AuthHeaderName.CsrfToken, value: mockCsrfToken},
             ],
         });
 
@@ -291,7 +297,7 @@ describe(handleAuthResponse.name, () => {
     it('handles successful auth with default localStorage', () => {
         const mockCsrfToken = 'token here';
         const headers = new Headers({
-            [csrfTokenHeaderName]: mockCsrfToken,
+            [AuthHeaderName.CsrfToken]: mockCsrfToken,
         });
         handleAuthResponse({ok: true, headers});
         assert.strictEquals(getCurrentCsrfToken(), mockCsrfToken);

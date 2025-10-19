@@ -3,8 +3,20 @@ import {safeMatch, type PartialWithUndefined} from '@augment-vir/common';
 import {convertDuration, type AnyDuration} from 'date-vir';
 import {type Primitive} from 'type-fest';
 import {parseUrl} from 'url-vir';
-import {type CreateJwtParams, type ParseJwtParams} from './jwt/jwt.js';
-import {createUserJwt, parseUserJwt, type UserJwtData} from './jwt/user-jwt.js';
+import {type CreateJwtParams, type ParseJwtParams, type ParsedJwt} from './jwt/jwt.js';
+import {createUserJwt, parseUserJwt, type JwtUserData} from './jwt/user-jwt.js';
+
+/**
+ * Cookie header names supported by default.
+ *
+ * @category Internal
+ */
+export enum AuthCookieName {
+    /** Used for a full user login auth. */
+    Auth = 'auth',
+    /** Use for a temporary "just signed up" auth. */
+    SignUp = 'sign-up',
+}
 
 /**
  * Parameters for {@link generateAuthCookie}.
@@ -47,7 +59,7 @@ export type CookieParams = {
  * @category Internal
  */
 export async function generateAuthCookie(
-    userJwtData: Readonly<UserJwtData>,
+    userJwtData: Readonly<JwtUserData>,
     cookieConfig: Readonly<CookieParams>,
 ): Promise<string> {
     return generateCookie({
@@ -122,17 +134,17 @@ export function generateCookie(
 export async function extractCookieJwt(
     rawCookie: string,
     jwtParams: Readonly<ParseJwtParams>,
-    cookieName: string = 'auth',
-): Promise<undefined | UserJwtData> {
+    cookieName: string = AuthCookieName.Auth,
+): Promise<undefined | ParsedJwt<JwtUserData>> {
     const cookieRegExp = new RegExp(`${cookieName}=[^;]+(?:;|$)`);
 
-    const [auth] = safeMatch(rawCookie, cookieRegExp);
+    const [cookieValue] = safeMatch(rawCookie, cookieRegExp);
 
-    if (!auth) {
+    if (!cookieValue) {
         return undefined;
     }
 
-    const rawJwt = auth.replace(`${cookieName}=`, '').replace(';', '');
+    const rawJwt = cookieValue.replace(`${cookieName}=`, '').replace(';', '');
 
     const jwt = await parseUserJwt(rawJwt, jwtParams);
 

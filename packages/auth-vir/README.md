@@ -13,6 +13,10 @@ npm i auth-vir
 
 # Usage
 
+## Easy usage
+
+For the easiest usage, construct and use `BackendAuthClient` on your server and `FrontendAuthClient` in your frontend.
+
 ## Password hashing
 
 -   Hash a user created password:
@@ -49,9 +53,9 @@ npm i auth-vir
 
 Use this on your host / server / backend to authenticate client / frontend requests.
 
-1. Expose the [`csrfTokenHeaderName`](https://electrovir.github.io/auth-vir/variables/csrfTokenHeaderName.html) (or just `'csrf-token'`) header via CORS headers with either of the following options:
-    1. Set `customHeaders: [csrfTokenHeaderName]` in `implementService` from [`@rest-vir/implement-service`](https://www.npmjs.com/package/@rest-vir/implement-service).
-    2. Set the header `Access-Control-Allow-Headers` to (at least) `csrfTokenHeaderName`.
+1. Expose the [`AuthHeaderName.CsrfToken`](https://electrovir.github.io/auth-vir/variables/AuthHeaderName.html) (or just `'csrf-token'`) header via CORS headers with either of the following options:
+    1. Set `customHeaders: [AuthHeaderName.CsrfToken]` in `implementService` from [`@rest-vir/implement-service`](https://www.npmjs.com/package/@rest-vir/implement-service).
+    2. Set the header `Access-Control-Allow-Headers` to (at least) `AuthHeaderName.CsrfToken`.
 2. Set the `Access-Control-Allow-Origin` header (it cannot be `*`) and properly implement CORS headers and responses.
 3. Generate JWT signing and encryption keys with one of the following:
     - Run `npx auth-vir`: the generated keys will be printed to your console.
@@ -78,6 +82,8 @@ import {
     type CookieParams,
     type CreateJwtParams,
 } from 'auth-vir';
+
+type MyUserId = string;
 
 /**
  * Use this for a /login endpoint.
@@ -125,7 +131,9 @@ export async function createUser(
  * This loads the current user from their auth cookie and CSRF token.
  */
 export async function getAuthenticatedUser(request: ClientRequest) {
-    const userId = await extractUserIdFromRequestHeaders(request.getHeaders(), jwtParams);
+    const userId = (
+        await extractUserIdFromRequestHeaders<MyUserId>(request.getHeaders(), jwtParams)
+    )?.userId;
     const user = userId ? findUserInDatabaseById(userId) : undefined;
 
     if (!userId || !user) {
@@ -180,7 +188,12 @@ function findUserInDatabaseByUsername(username: string) {
     };
 }
 
-function findUserInDatabaseById(userId: string): undefined | {id: string; username: string} {
+function findUserInDatabaseById(userId: MyUserId):
+    | undefined
+    | {
+          id: MyUserId;
+          username: string;
+      } {
     /** This should connect to your database and find a user matching the given user id. */
 
     return {
@@ -230,7 +243,7 @@ Use this on your client / frontend for storing and sending session authorization
 
 1. Send a login fetch request to your host / server / backend with `{credentials: 'include'}` set on the request.
 2. Pass the `Response` from step 1 into [`handleAuthResponse`](https://electrovir.github.io/auth-vir/functions/handleAuthResponse.html).
-3. In all subsequent fetch requests to the host / server / backend, set `{credentials: 'include'}` and include `{headers: {[csrfTokenHeaderName]: getCurrentCsrfToken()}}`.
+3. In all subsequent fetch requests to the host / server / backend, set `{credentials: 'include'}` and include `{headers: {[AuthHeaderName.CsrfToken]: getCurrentCsrfToken()}}`.
 4. Upon user logout, call [`wipeCurrentCsrfToken()`](https://electrovir.github.io/auth-vir/functions/wipeCurrentCsrfToken.html)
 
 Here's a full example of how to use all the client / frontend side auth functionality:
@@ -239,12 +252,8 @@ Here's a full example of how to use all the client / frontend side auth function
 
 ```TypeScript
 import {HttpStatus} from '@augment-vir/common';
-import {
-    csrfTokenHeaderName,
-    getCurrentCsrfToken,
-    handleAuthResponse,
-    wipeCurrentCsrfToken,
-} from 'auth-vir';
+import {AuthHeaderName} from '../headers.js';
+import {getCurrentCsrfToken, handleAuthResponse, wipeCurrentCsrfToken} from 'auth-vir';
 
 /** Call this when the user logs in for the first time this session. */
 export async function sendLoginRequest(
@@ -283,7 +292,7 @@ export async function sendAuthenticatedRequest(
         credentials: 'include',
         headers: {
             ...headers,
-            [csrfTokenHeaderName]: csrfToken,
+            [AuthHeaderName.CsrfToken]: csrfToken,
         },
     });
 
@@ -310,8 +319,8 @@ export function logout() {
 
 All of these configurations must be set for the auth exports in this package to function properly:
 
--   Expose the [`csrfTokenHeaderName`](https://electrovir.github.io/auth-vir/variables/csrfTokenHeaderName.html) (or just `'csrf-token'`) header via CORS headers with either of the following options:
-    1.  Set `customHeaders: [csrfTokenHeaderName]` in `implementService` from [`@rest-vir/implement-service`](https://www.npmjs.com/package/@rest-vir/implement-service).
-    2.  Set the header `Access-Control-Allow-Headers` to (at least) `csrfTokenHeaderName`.
+-   Expose the [`AuthHeaderName.CsrfToken`](https://electrovir.github.io/auth-vir/variables/AuthHeaderName.html) (or just `'csrf-token'`) header via CORS headers with either of the following options:
+    1.  Set `customHeaders: [AuthHeaderName.CsrfToken]` in `implementService` from [`@rest-vir/implement-service`](https://www.npmjs.com/package/@rest-vir/implement-service).
+    2.  Set the header `Access-Control-Allow-Headers` to (at least) `AuthHeaderName.CsrfToken`.
 -   Set `credentials: include` in all fetch requests on the client that need to use or set the auth cookie.
 -   Server CORS should set `Access-Control-Allow-Origin` (it cannot be `*`).

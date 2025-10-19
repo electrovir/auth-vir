@@ -9,6 +9,7 @@ export default [
     {
         ignores: [
             /** Add file globs that should be ignored. */
+            'packages/auth-vir/src/generated/',
         ],
     },
     {

@@ -1,0 +1,35 @@
+generator jsClient {
+    provider        = "prisma-client"
+    previewFeatures = ["strictUndefinedChecks", "relationJoins"]
+    output          = "../src/generated"
+    engineType      = "client"
+    moduleFormat    = "esm"
+}
+
+generator shapes {
+    provider = "prisma-shapes"
+    output   = "../src/generated"
+}
+
+generator stringDates {
+    provider = "prisma-string-dates"
+    output   = "../src/generated"
+}
+
+generator taggedIds {
+    provider = "prisma-tagged-ids"
+    output   = "../src/generated"
+}
+
+datasource db {
+    provider = "postgresql"
+    url      = env("DATABASE_URL")
+}
+
+model User {
+    id        String   @id @default(cuid(2))
+    createdAt DateTime @default(now())
+    updatedAt DateTime @default(now()) @updatedAt
+
+    name String
+}

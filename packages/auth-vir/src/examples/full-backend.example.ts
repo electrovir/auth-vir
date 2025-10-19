@@ -10,6 +10,8 @@ import {
     type CreateJwtParams,
 } from '../index.js';
 
+type MyUserId = string;
+
 /**
  * Use this for a /login endpoint.
  *
@@ -56,7 +58,9 @@ export async function createUser(
  * This loads the current user from their auth cookie and CSRF token.
  */
 export async function getAuthenticatedUser(request: ClientRequest) {
-    const userId = await extractUserIdFromRequestHeaders(request.getHeaders(), jwtParams);
+    const userId = (
+        await extractUserIdFromRequestHeaders<MyUserId>(request.getHeaders(), jwtParams)
+    )?.userId;
     const user = userId ? findUserInDatabaseById(userId) : undefined;
 
     if (!userId || !user) {
@@ -111,7 +115,12 @@ function findUserInDatabaseByUsername(username: string) {
     };
 }
 
-function findUserInDatabaseById(userId: string): undefined | {id: string; username: string} {
+function findUserInDatabaseById(userId: MyUserId):
+    | undefined
+    | {
+          id: MyUserId;
+          username: string;
+      } {
     /** This should connect to your database and find a user matching the given user id. */
 
     return {

@@ -1,10 +1,6 @@
 import {HttpStatus} from '@augment-vir/common';
-import {
-    csrfTokenHeaderName,
-    getCurrentCsrfToken,
-    handleAuthResponse,
-    wipeCurrentCsrfToken,
-} from '../index.js';
+import {AuthHeaderName} from '../headers.js';
+import {getCurrentCsrfToken, handleAuthResponse, wipeCurrentCsrfToken} from '../index.js';
 
 /** Call this when the user logs in for the first time this session. */
 export async function sendLoginRequest(
@@ -43,7 +39,7 @@ export async function sendAuthenticatedRequest(
         credentials: 'include',
         headers: {
             ...headers,
-            [csrfTokenHeaderName]: csrfToken,
+            [AuthHeaderName.CsrfToken]: csrfToken,
         },
     });
 

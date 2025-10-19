@@ -10,3 +10,5 @@
 **/package-lock.json
 **/tsconfig.tsbuildinfo
 /Icon?
+
+packages/auth-vir/src/generated/

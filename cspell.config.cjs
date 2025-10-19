@@ -4,8 +4,10 @@ module.exports = {
     ...baseConfig,
     ignorePaths: [
         ...baseConfig.ignorePaths,
+        'packages/auth-vir/src/generated/',
     ],
     words: [
         ...baseConfig.words,
+        'cuid',
     ],
 };

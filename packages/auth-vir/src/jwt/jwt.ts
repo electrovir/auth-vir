@@ -1,12 +1,16 @@
-import {check} from '@augment-vir/assert';
+import {assertWrap, check} from '@augment-vir/assert';
 import {type AnyObject, type PartialWithUndefined} from '@augment-vir/common';
 import {
+    type AnyDuration,
     calculateRelativeDate,
     createFullDateInUserTimezone,
-    getNowInUtcTimezone,
-    toTimestamp,
-    type AnyDuration,
+    createUtcFullDate,
     type DateLike,
+    type FullDate,
+    getNowInUtcTimezone,
+    isDateAfter,
+    toTimestamp,
+    type UtcTimezone,
 } from 'date-vir';
 import {EncryptJWT, jwtDecrypt, jwtVerify, SignJWT} from 'jose';
 import {type JwtKeys} from './jwt-keys.js';
@@ -119,6 +123,16 @@ export async function createJwt<JwtData extends AnyObject = AnyObject>(
 export type ParseJwtParams = Readonly<Pick<CreateJwtParams, 'issuer' | 'audience' | 'jwtKeys'>>;
 
 /**
+ * A fully parsed JWT with embedded data.
+ *
+ * @category Internal
+ */
+export type ParsedJwt<JwtData extends AnyObject> = {
+    data: JwtData;
+    jwtExpiration: FullDate<UtcTimezone>;
+};
+
+/**
  * Parse and extract all data from an encrypted and signed JWT.
  *
  * @category Internal
@@ -127,7 +141,7 @@ export type ParseJwtParams = Readonly<Pick<CreateJwtParams, 'issuer' | 'audience
 export async function parseJwt<JwtData extends AnyObject = AnyObject>(
     encryptedJwt: string,
     params: Readonly<ParseJwtParams>,
-): Promise<JwtData> {
+): Promise<ParsedJwt<JwtData>> {
     const decryptedJwt = await jwtDecrypt(encryptedJwt, params.jwtKeys.encryptionKey);
 
     if (!check.deepEquals(decryptedJwt.protectedHeader, encryptionProtectedHeader)) {
@@ -156,5 +170,20 @@ export async function parseJwt<JwtData extends AnyObject = AnyObject>(
         throw new Error('Invalid signing protected header.');
     }
 
-    return data as JwtData;
+    const expirationMs = assertWrap.isDefined(verifiedJwt.payload.exp, 'JWT has no expiration.');
+    const jwtExpiration: FullDate<UtcTimezone> = createUtcFullDate(expirationMs);
+
+    if (
+        isDateAfter({
+            fullDate: getNowInUtcTimezone(),
+            relativeTo: jwtExpiration,
+        })
+    ) {
+        throw new Error('JWT expired.');
+    }
+
+    return {
+        data: data as JwtData,
+        jwtExpiration,
+    };
 }
