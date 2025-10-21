@@ -48,12 +48,7 @@ async function setupBackendAuthClientTest<AssumedUserParams extends AnyObject = 
     testContext: UniversalTestContext;
     seedDataOverride?: PrismaAddModelData<PrismaClient, Prisma.TypeMap> | undefined;
     authClientConfigOverrides?: Partial<
-        BackendAuthClientConfig<
-            SelectFrom<User, {id: true; name: true}>,
-            UserId,
-            AuthHeaderName.CsrfToken,
-            AssumedUserParams
-        >
+        BackendAuthClientConfig<SelectFrom<User, {id: true; name: true}>, UserId, AssumedUserParams>
     >;
 }) {
     const {prismaClient} = await createPrismaClient(PrismaDatabaseEngine.Postgres, PrismaClient, {
@@ -81,8 +76,8 @@ async function setupBackendAuthClientTest<AssumedUserParams extends AnyObject = 
     const backendAuthClient = new BackendAuthClient<
         SelectFrom<User, {id: true; name: true}>,
         UserId,
-        AuthHeaderName.CsrfToken,
-        AssumedUserParams
+        AssumedUserParams,
+        AuthHeaderName.CsrfToken
     >({
         getJetKeys() {
             return jwtKeys;

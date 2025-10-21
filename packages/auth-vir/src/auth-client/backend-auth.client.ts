@@ -49,8 +49,8 @@ export type GetUserResult<DatabaseUser extends AnyObject> = {
 export type BackendAuthClientConfig<
     DatabaseUser extends AnyObject,
     UserId extends string | number,
-    CsrfHeaderName extends string = AuthHeaderName.CsrfToken,
     AssumedUserParams extends JsonCompatibleObject = EmptyObject,
+    CsrfHeaderName extends string = AuthHeaderName.CsrfToken,
 > = Readonly<
     {
         /** The origin of your backend that is offering auth cookies. */
@@ -149,8 +149,8 @@ const defaultSessionIdleTimeout: Readonly<AnyDuration> = {
 export class BackendAuthClient<
     DatabaseUser extends AnyObject,
     UserId extends string | number,
-    CsrfHeaderName extends string = AuthHeaderName.CsrfToken,
     AssumedUserParams extends AnyObject = EmptyObject,
+    CsrfHeaderName extends string = AuthHeaderName.CsrfToken,
 > {
     protected cachedParsedJwtKeys: Record<string, Readonly<JwtKeys>> = {};
 
@@ -158,8 +158,8 @@ export class BackendAuthClient<
         protected readonly config: BackendAuthClientConfig<
             DatabaseUser,
             UserId,
-            CsrfHeaderName,
-            AssumedUserParams
+            AssumedUserParams,
+            CsrfHeaderName
         >,
     ) {}
 
