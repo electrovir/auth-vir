@@ -8,7 +8,7 @@ import {
 } from '@augment-vir/common';
 import {calculateRelativeDate, getNowInUtcTimezone, isDateAfter, type AnyDuration} from 'date-vir';
 import {type IncomingHttpHeaders, type OutgoingHttpHeaders} from 'node:http';
-import {type EmptyObject} from 'type-fest';
+import {type EmptyObject, type RequireExactlyOne} from 'type-fest';
 import {
     extractUserIdFromRequestHeaders,
     generateLogoutHeaders,
@@ -369,30 +369,51 @@ export class BackendAuthClient<
     }
 
     /** Use these headers to log out the user. */
-    public async createLogoutHeaders(): Promise<
-        {
-            'set-cookie': string;
-        } & Record<CsrfHeaderName, string>
+    public async createLogoutHeaders(
+        params: RequireExactlyOne<{
+            allCookies: true;
+            isSignUpCookie: boolean;
+        }>,
+    ): Promise<
+        Partial<Record<CsrfHeaderName, string>> & {
+            'set-cookie': string[];
+        }
     > {
-        const signUpCookieHeaders = generateLogoutHeaders(
-            await this.getCookieParams({
-                isSignUpCookie: true,
-            }),
-            this.config.overrides,
-        );
-        const authCookieHeaders = generateLogoutHeaders(
-            await this.getCookieParams({
-                isSignUpCookie: false,
-            }),
-            this.config.overrides,
-        );
+        const signUpCookieHeaders =
+            params.allCookies || params.isSignUpCookie
+                ? (generateLogoutHeaders(
+                      await this.getCookieParams({
+                          isSignUpCookie: true,
+                      }),
+                      this.config.overrides,
+                  ) satisfies Record<CsrfHeaderName, string>)
+                : undefined;
+        const authCookieHeaders =
+            params.allCookies || !params.isSignUpCookie
+                ? (generateLogoutHeaders(
+                      await this.getCookieParams({
+                          isSignUpCookie: false,
+                      }),
+                      this.config.overrides,
+                  ) satisfies Record<CsrfHeaderName, string>)
+                : undefined;
+
+        const setCookieHeader: {
+            'set-cookie': string[];
+        } = {
+            'set-cookie': mergeHeaderValues(
+                signUpCookieHeaders?.['set-cookie'],
+                authCookieHeaders?.['set-cookie'],
+            ),
+        };
+        const csrfTokenHeader = {
+            ...authCookieHeaders,
+            ...signUpCookieHeaders,
+        } as Record<CsrfHeaderName, string>;
 
         return {
-            ...authCookieHeaders,
-            'set-cookie': mergeHeaderValues(
-                signUpCookieHeaders['set-cookie'],
-                authCookieHeaders['set-cookie'],
-            ),
+            ...csrfTokenHeader,
+            ...setCookieHeader,
         };
     }
 

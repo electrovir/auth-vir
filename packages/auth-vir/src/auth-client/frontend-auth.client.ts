@@ -1,4 +1,5 @@
 import {
+    createBlockingInterval,
     HttpStatus,
     type JsonCompatibleObject,
     type MaybePromise,
@@ -6,7 +7,7 @@ import {
     type SelectFrom,
     type SetOptionalWithUndefined,
 } from '@augment-vir/common';
-import {convertDuration, type AnyDuration} from 'date-vir';
+import {type AnyDuration} from 'date-vir';
 import {type EmptyObject} from 'type-fest';
 import {
     CsrfTokenFailureReason,
@@ -68,22 +69,21 @@ export type FrontendAuthClientConfig = PartialWithUndefined<{
  * @category Client
  */
 export class FrontendAuthClient<AssumedUserParams extends JsonCompatibleObject = EmptyObject> {
-    protected userCheckInterval: undefined | ReturnType<typeof globalThis.setInterval>;
+    protected userCheckInterval: undefined | ReturnType<typeof createBlockingInterval>;
 
     constructor(protected readonly config: FrontendAuthClientConfig = {}) {
         if (config.checkUser) {
-            const intervalDuration = convertDuration(config.checkUser.interval || {minutes: 1}, {
-                milliseconds: true,
-            }).milliseconds;
-
-            this.userCheckInterval = globalThis.setInterval(async () => {
-                const response = await config.checkUser?.performCheck();
-                if (response) {
-                    await this.verifyResponseAuth({
-                        status: response.status,
-                    });
-                }
-            }, intervalDuration);
+            this.userCheckInterval = createBlockingInterval(
+                async () => {
+                    const response = await config.checkUser?.performCheck();
+                    if (response) {
+                        await this.verifyResponseAuth({
+                            status: response.status,
+                        });
+                    }
+                },
+                config.checkUser.interval || {minutes: 1},
+            );
         }
     }
 
@@ -92,7 +92,7 @@ export class FrontendAuthClient<AssumedUserParams extends JsonCompatibleObject =
      * interval).
      */
     public destroy() {
-        globalThis.clearInterval(this.userCheckInterval);
+        this.userCheckInterval?.clearInterval();
     }
 
     /** Wraps {@link getCurrentCsrfToken} to automatically handle wiping an invalid CSRF token. */
