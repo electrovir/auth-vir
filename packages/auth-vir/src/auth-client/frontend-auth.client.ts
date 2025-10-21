@@ -4,7 +4,9 @@ import {
     type MaybePromise,
     type PartialWithUndefined,
     type SelectFrom,
+    type SetOptionalWithUndefined,
 } from '@augment-vir/common';
+import {convertDuration, type AnyDuration} from 'date-vir';
 import {type EmptyObject} from 'type-fest';
 import {
     CsrfTokenFailureReason,
@@ -28,6 +30,29 @@ export type FrontendAuthClientConfig = PartialWithUndefined<{
     canAssumeUser: () => MaybePromise<boolean>;
     /** Called whenever the current user becomes unauthorized and their CSRF token is wiped. */
     authClearedCallback: () => MaybePromise<void>;
+
+    /**
+     * Performs automatic checks on an interval to see if the user is still authenticated. Omit this
+     * to turn off automatic checks.
+     */
+    checkUser: {
+        /**
+         * Get a response from the backend to see if the user is still authenticated. If the
+         * response returns a non-authorized status, the user is wiped. Any other status is
+         * ignored.
+         */
+        performCheck: () => MaybePromise<
+            SelectFrom<
+                Response,
+                {
+                    status: true;
+                }
+            >
+        >;
+        /** @default {minutes: 1} */
+        interval?: AnyDuration | undefined;
+    };
+
     overrides: PartialWithUndefined<{
         localStorage: Pick<Storage, 'setItem' | 'removeItem' | 'getItem'>;
         csrfHeaderName: string;
@@ -43,7 +68,32 @@ export type FrontendAuthClientConfig = PartialWithUndefined<{
  * @category Client
  */
 export class FrontendAuthClient<AssumedUserParams extends JsonCompatibleObject = EmptyObject> {
-    constructor(protected readonly config: FrontendAuthClientConfig = {}) {}
+    protected userCheckInterval: undefined | ReturnType<typeof globalThis.setInterval>;
+
+    constructor(protected readonly config: FrontendAuthClientConfig = {}) {
+        if (config.checkUser) {
+            const intervalDuration = convertDuration(config.checkUser.interval || {minutes: 1}, {
+                milliseconds: true,
+            }).milliseconds;
+
+            this.userCheckInterval = globalThis.setInterval(async () => {
+                const response = await config.checkUser?.performCheck();
+                if (response) {
+                    await this.verifyResponseAuth({
+                        status: response.status,
+                    });
+                }
+            }, intervalDuration);
+        }
+    }
+
+    /**
+     * Destroys the client and performs all necessary cleanup (like clearing the user check
+     * interval).
+     */
+    public destroy() {
+        globalThis.clearInterval(this.userCheckInterval);
+    }
 
     /** Wraps {@link getCurrentCsrfToken} to automatically handle wiping an invalid CSRF token. */
     public async getCurrentCsrfToken(): Promise<string | undefined> {
@@ -176,18 +226,21 @@ export class FrontendAuthClient<AssumedUserParams extends JsonCompatibleObject =
      */
     public async verifyResponseAuth(
         response: Readonly<
-            SelectFrom<
-                Response,
-                {
-                    status: true;
-                    headers: true;
-                }
+            SetOptionalWithUndefined<
+                SelectFrom<
+                    Response,
+                    {
+                        status: true;
+                        headers: true;
+                    }
+                >,
+                'headers'
             >
         >,
     ): Promise<void> {
         if (
             response.status === HttpStatus.Unauthorized &&
-            !response.headers.get(AuthHeaderName.IsSignUpAuth)
+            !response.headers?.get(AuthHeaderName.IsSignUpAuth)
         ) {
             await this.logout();
         }
