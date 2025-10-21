@@ -8,7 +8,7 @@ import {
 } from '@augment-vir/common';
 import {calculateRelativeDate, getNowInUtcTimezone, isDateAfter, type AnyDuration} from 'date-vir';
 import {type IncomingHttpHeaders, type OutgoingHttpHeaders} from 'node:http';
-import {type EmptyObject, type RequireExactlyOne} from 'type-fest';
+import {type EmptyObject, type RequireExactlyOne, type RequireOneOrNone} from 'type-fest';
 import {
     extractUserIdFromRequestHeaders,
     generateLogoutHeaders,
@@ -463,19 +463,47 @@ export class BackendAuthClient<
         };
     }
 
+    /** Combines `.getInsecureUser()` and `.getSecureUser()` into one method. */
+    public async getInsecureOrSecureUser(params: {
+        requestHeaders: IncomingHttpHeaders;
+        isSignUpCookie?: boolean | undefined;
+    }): Promise<
+        RequireOneOrNone<{
+            secureUser: GetUserResult<DatabaseUser>;
+            /**
+             * @deprecated This only half authenticates the user. It should only be used in
+             *   circumstances where JavaScript cannot be used to attach the CSRF token header to
+             *   the request (like when opening a PDF file). Use `.getSecureUser()` instead,
+             *   whenever possible.
+             */
+            insecureUser: GetUserResult<DatabaseUser>;
+        }>
+    > {
+        const secureUser = await this.getSecureUser(params);
+
+        if (secureUser) {
+            return secureUser;
+        }
+
+        // eslint-disable-next-line @typescript-eslint/no-deprecated
+        const insecureUser = await this.getInsecureUser(params);
+
+        return insecureUser ? {insecureUser} : {};
+    }
+
     /**
      * @deprecated This only half authenticates the user. It should only be used in circumstances
      *   where JavaScript cannot be used to attach the CSRF token header to the request (like when
      *   opening a PDF file). Use `.getSecureUser()` instead, whenever possible.
      */
     public async getInsecureUser({
-        headers,
+        requestHeaders,
     }: {
-        headers: IncomingHttpHeaders;
+        requestHeaders: IncomingHttpHeaders;
     }): Promise<GetUserResult<DatabaseUser> | undefined> {
         // eslint-disable-next-line @typescript-eslint/no-deprecated
         const userIdResult = await insecureExtractUserIdFromCookieAlone<UserId>(
-            headers,
+            requestHeaders,
             await this.getJwtParams(),
             AuthCookieName.Auth,
         );

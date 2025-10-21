@@ -157,7 +157,7 @@ describe(BackendAuthClient.name, () => {
 
         // eslint-disable-next-line @typescript-eslint/no-deprecated
         const insecureUserResult = await backendAuthClient.getInsecureUser({
-            headers: requestHeaders,
+            requestHeaders,
         });
         assert.isDefined(insecureUserResult, 'No insecure user result.');
 
