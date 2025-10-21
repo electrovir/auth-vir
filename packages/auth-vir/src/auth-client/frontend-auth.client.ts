@@ -74,6 +74,7 @@ export class FrontendAuthClient<AssumedUserParams extends JsonCompatibleObject =
         return true;
     }
 
+    /** Gets the assumed user params stored in local storage, if any. */
     public getAssumedUser(): AssumedUserParams | undefined {
         const rawValue = (this.config.overrides?.localStorage || globalThis.localStorage).getItem(
             this.config.overrides?.assumedUserHeaderName || AuthHeaderName.AssumedUser,

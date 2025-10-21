@@ -9,9 +9,12 @@ import {describe, it} from '@augment-vir/test';
 import {type EmptyObject} from 'type-fest';
 import {generateCsrfToken} from '../csrf-token.js';
 import {type User} from '../generated/client.js';
-import {AuthHeaderName} from '../headers.js';
-import {createMockLocalStorage} from '../mock-local-storage.js';
-import {FrontendAuthClient, type FrontendAuthClientConfig} from './frontend-auth.client.js';
+import {
+    AuthHeaderName,
+    createMockLocalStorage,
+    FrontendAuthClient,
+    type FrontendAuthClientConfig,
+} from '../index.js';
 
 describe(FrontendAuthClient.name, () => {
     function createMockFrontendAuthClient<
