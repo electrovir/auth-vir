@@ -10,8 +10,8 @@
         "test": "exit 0"
     },
     "dependencies": {
-        "@augment-vir/assert": "^31.41.0",
-        "@augment-vir/common": "^31.41.0",
+        "@augment-vir/assert": "^31.42.0",
+        "@augment-vir/common": "^31.42.0",
         "@rest-vir/define-service": "^1.2.5",
         "@rest-vir/implement-service": "^1.2.5",
         "@rest-vir/run-service": "^1.2.5",
@@ -22,7 +22,7 @@
     "devDependencies": {
         "runstorm": "^0.6.2",
         "typescript": "^5.9.3",
-        "vite": "^7.1.10"
+        "vite": "^7.1.11"
     },
     "engines": {
         "node": ">=22"
