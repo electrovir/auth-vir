@@ -7,11 +7,10 @@ import {
     extractUserIdFromRequestHeaders,
     generateLogoutHeaders,
     generateSuccessfulLoginHeaders,
-    getCurrentCsrfToken,
     handleAuthResponse,
     insecureExtractUserIdFromCookieAlone,
-    wipeCurrentCsrfToken,
 } from './auth.js';
+import {generateCsrfToken, getCurrentCsrfToken} from './csrf-token.js';
 import {AuthHeaderName} from './headers.js';
 import {generateNewJwtKeys, parseJwtKeys} from './jwt/jwt-keys.js';
 import {mockJwtParams} from './jwt/jwt.mock.js';
@@ -19,23 +18,6 @@ import {
     createEmptyMockLocalStorageAccessRecord,
     createMockLocalStorage,
 } from './mock-local-storage.js';
-
-describe(getCurrentCsrfToken.name, () => {
-    it('can override the localstorage key', () => {
-        const mockKey = 'mock-key';
-        const mockCsrfToken = 'token here';
-
-        const {localStorage} = createMockLocalStorage();
-        localStorage.setItem(mockKey, mockCsrfToken);
-
-        assert.strictEquals(
-            getCurrentCsrfToken({localStorage, csrfHeaderName: mockKey}),
-            mockCsrfToken,
-        );
-        wipeCurrentCsrfToken({localStorage, csrfHeaderName: mockKey});
-        assert.isUndefined(getCurrentCsrfToken({localStorage, csrfHeaderName: mockKey}));
-    });
-});
 
 const mockUserId = 'mock-id';
 async function setupHeaders() {
@@ -276,31 +258,37 @@ describe(handleAuthResponse.name, () => {
         assert.throws(() => handleAuthResponse({ok: true, headers}));
     });
     it('handles successful auth with mock localStorage', () => {
-        const mockCsrfToken = 'token here';
+        const mockCsrfToken = generateCsrfToken({days: 2});
 
         const {accessRecord, localStorage} = createMockLocalStorage();
 
         const headers = new Headers({
-            [AuthHeaderName.CsrfToken]: mockCsrfToken,
+            [AuthHeaderName.CsrfToken]: JSON.stringify(mockCsrfToken),
         });
 
         handleAuthResponse({ok: true, headers}, {localStorage});
         assert.deepEquals(accessRecord, {
             ...createEmptyMockLocalStorageAccessRecord(),
             setItem: [
-                {key: AuthHeaderName.CsrfToken, value: mockCsrfToken},
+                {
+                    key: AuthHeaderName.CsrfToken,
+                    value: JSON.stringify(mockCsrfToken),
+                },
             ],
         });
 
-        assert.strictEquals(getCurrentCsrfToken({localStorage}), mockCsrfToken);
+        assert.strictEquals(
+            getCurrentCsrfToken({localStorage}).csrfToken?.token,
+            mockCsrfToken.token,
+        );
     });
     it('handles successful auth with default localStorage', () => {
-        const mockCsrfToken = 'token here';
+        const mockCsrfToken = generateCsrfToken({days: 2});
         const headers = new Headers({
-            [AuthHeaderName.CsrfToken]: mockCsrfToken,
+            [AuthHeaderName.CsrfToken]: JSON.stringify(mockCsrfToken),
         });
         handleAuthResponse({ok: true, headers});
-        assert.strictEquals(getCurrentCsrfToken(), mockCsrfToken);
+        assert.strictEquals(getCurrentCsrfToken().csrfToken?.token, mockCsrfToken.token);
     });
 });
 

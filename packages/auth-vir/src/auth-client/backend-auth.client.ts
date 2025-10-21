@@ -1,4 +1,11 @@
-import {ensureArray, type AnyObject, type MaybePromise} from '@augment-vir/common';
+import {
+    ensureArray,
+    type AnyObject,
+    type JsonCompatibleObject,
+    type MaybePromise,
+    type PartialWithUndefined,
+    type RequiredAndNotNull,
+} from '@augment-vir/common';
 import {calculateRelativeDate, getNowInUtcTimezone, isDateAfter, type AnyDuration} from 'date-vir';
 import {type IncomingHttpHeaders, type OutgoingHttpHeaders} from 'node:http';
 import {type EmptyObject} from 'type-fest';
@@ -34,88 +41,99 @@ export type GetUserResult<DatabaseUser extends AnyObject> = {
     responseHeaders: OutgoingHttpHeaders;
 };
 
-/** Config for {@link BackendAuthClient}. */
+/**
+ * Config for {@link BackendAuthClient}.
+ *
+ * @category Internal
+ */
 export type BackendAuthClientConfig<
     DatabaseUser extends AnyObject,
     UserId extends string | number,
-    AssumedUserParams extends AnyObject = EmptyObject,
-> = Readonly<{
-    /** The origin of your backend that is offering auth cookies. */
-    serviceOrigin: string;
-    /** Finds the relevant user from your own database. */
-    getUserFromDatabase: (userParams: {
-        /** The user id extracted from the request cookie. */
-        userId: UserId;
-        /** Indicates that we're loading the user from a sign up cookie. */
-        isSignUpCookie: boolean;
+    CsrfHeaderName extends string = AuthHeaderName.CsrfToken,
+    AssumedUserParams extends JsonCompatibleObject = EmptyObject,
+> = Readonly<
+    {
+        /** The origin of your backend that is offering auth cookies. */
+        serviceOrigin: string;
+        /** Finds the relevant user from your own database. */
+        getUserFromDatabase: (userParams: {
+            /** The user id extracted from the request cookie. */
+            userId: UserId;
+            /** Indicates that we're loading the user from a sign up cookie. */
+            isSignUpCookie: boolean;
+            /**
+             * If this is set, we're attempting to load a database user for the purpose of assuming
+             * their user identity. Otherwise, this is `undefined`.
+             */
+            assumedUserParams: AssumedUserParams | undefined;
+        }) => MaybePromise<DatabaseUser | undefined | null>;
         /**
-         * If this is set, we're attempting to load a database user for the purpose of assuming
-         * their user identity. Otherwise, this is `undefined`.
+         * Get JWT keys produced by {@link generateNewJwtKeys}. Make sure that each time this is
+         * called, the same JWT keys are returned (do not call {@link generateNewJwtKeys} each time
+         * this is called). Any time the JWT keys change, all current sessions will terminate.
          */
-        assumedUserParams: AssumedUserParams | undefined;
-    }) => MaybePromise<DatabaseUser | undefined | null>;
-    /**
-     * Get JWT keys produced by {@link generateNewJwtKeys}. Make sure that each time this is called,
-     * the same JWT keys are returned (do not call {@link generateNewJwtKeys} each time this is
-     * called). Any time the JWT keys change, all current sessions will terminate.
-     */
-    getJetKeys: () => MaybePromise<Readonly<RawJwtKeys>>;
-    /**
-     * Set this to allow specific users (determined by `canAssumeUser`) to assume the identity of
-     * other users. This should only be used for admins so that they can troubleshoot user issues.
-     *
-     * @see {@link AuthHeaderName}
-     */
-    assumeUser?:
-        | undefined
-        | {
-              /**
-               * Handles assumed user header value.
-               *
-               * @see {@link AuthHeaderName}
-               */
-              handleAssumedUserData: (
-                  /**
-                   * The assumed user header value.
-                   *
-                   * @see {@link AuthHeaderName}
-                   */
-                  data: string,
-              ) => MaybePromise<
-                  | {
-                        assumedUserParams: AssumedUserParams;
-                        userId: UserId;
-                    }
-                  | undefined
-              >;
-              /**
-               * Return `true` to allow the current user (by the given id) to assume identities of
-               * other users. Return `false` to block it. It is recommended to only return `true`
-               * for admin users.
-               *
-               * @see {@link AuthHeaderName}
-               */
-              canAssumeUser: (params: {userId: UserId}) => MaybePromise<boolean>;
-          };
-    /**
-     * When `isDev` is set, cookies do not require HTTPS (so they can be used with
-     * http://localhost).
-     */
-    isDev: boolean;
-    /**
-     * This determines how long a cookie will be valid until it needs to be refreshed.
-     *
-     * @default {minutes: 20}
-     */
-    userSessionIdleTimeout?: Readonly<AnyDuration> | undefined;
-    /**
-     * How long before a user's session times out when we should start trying to refresh their
-     * session.
-     *
-     * @default {minutes: 5}
-     */
-    sessionRefreshThreshold?: Readonly<AnyDuration> | undefined;
-}>;
+        getJetKeys: () => MaybePromise<Readonly<RawJwtKeys>>;
+        /**
+         * When `isDev` is set, cookies do not require HTTPS (so they can be used with
+         * http://localhost).
+         */
+        isDev: boolean;
+    } & PartialWithUndefined<{
+        /**
+         * Set this to allow specific users (determined by `canAssumeUser`) to assume the identity
+         * of other users. This should only be used for admins so that they can troubleshoot user
+         * issues.
+         *
+         * @see {@link AuthHeaderName}
+         */
+        assumeUser: {
+            /**
+             * Handles assumed user header value.
+             *
+             * @see {@link AuthHeaderName}
+             */
+            handleAssumedUserData: (
+                /**
+                 * The assumed user header value.
+                 *
+                 * @see {@link AuthHeaderName}
+                 */
+                data: string,
+            ) => MaybePromise<
+                | {
+                      assumedUserParams: AssumedUserParams;
+                      userId: UserId;
+                  }
+                | undefined
+            >;
+            /**
+             * Return `true` to allow the current user (by the given id) to assume identities of
+             * other users. Return `false` to block it. It is recommended to only return `true` for
+             * admin users.
+             *
+             * @see {@link AuthHeaderName}
+             */
+            canAssumeUser: (params: {userId: UserId}) => MaybePromise<boolean>;
+        };
+        /**
+         * This determines how long a cookie will be valid until it needs to be refreshed.
+         *
+         * @default {minutes: 20}
+         */
+        userSessionIdleTimeout: Readonly<AnyDuration>;
+        /**
+         * How long before a user's session times out when we should start trying to refresh their
+         * session.
+         *
+         * @default {minutes: 5}
+         */
+        sessionRefreshThreshold: Readonly<AnyDuration>;
+        overrides: PartialWithUndefined<{
+            csrfHeaderName: CsrfHeaderName;
+            assumedUserHeaderName: string;
+        }>;
+    }>
+>;
 
 const defaultSessionIdleTimeout: Readonly<AnyDuration> = {
     minutes: 20,
@@ -126,16 +144,23 @@ const defaultSessionIdleTimeout: Readonly<AnyDuration> = {
  * a backend environment as it accesses native Node packages.
  *
  * @category Auth : Host
+ * @category Client
  */
 export class BackendAuthClient<
     DatabaseUser extends AnyObject,
     UserId extends string | number,
+    CsrfHeaderName extends string = AuthHeaderName.CsrfToken,
     AssumedUserParams extends AnyObject = EmptyObject,
 > {
     protected cachedParsedJwtKeys: Record<string, Readonly<JwtKeys>> = {};
 
     constructor(
-        protected readonly config: BackendAuthClientConfig<DatabaseUser, UserId, AssumedUserParams>,
+        protected readonly config: BackendAuthClientConfig<
+            DatabaseUser,
+            UserId,
+            CsrfHeaderName,
+            AssumedUserParams
+        >,
     ) {}
 
     /** Get all the parameters used for cookie generation. */
@@ -259,7 +284,7 @@ export class BackendAuthClient<
         }
 
         const assumedUserHeader: string | undefined = ensureArray(
-            headers[AuthHeaderName.AssumedUser],
+            headers[this.config.overrides?.assumedUserHeaderName || AuthHeaderName.AssumedUser],
         )[0];
 
         if (!assumedUserHeader) {
@@ -294,6 +319,7 @@ export class BackendAuthClient<
             requestHeaders,
             await this.getJwtParams(),
             isSignUpCookie ? AuthCookieName.SignUp : AuthCookieName.Auth,
+            this.config.overrides,
         );
         if (!userIdResult) {
             return undefined;
@@ -358,16 +384,22 @@ export class BackendAuthClient<
     }
 
     /** Use these headers to log out the user. */
-    public async createLogoutHeaders(): Promise<OutgoingHttpHeaders> {
+    public async createLogoutHeaders(): Promise<
+        {
+            'set-cookie': string;
+        } & Record<CsrfHeaderName, string>
+    > {
         const signUpCookieHeaders = generateLogoutHeaders(
             await this.getCookieParams({
                 isSignUpCookie: true,
             }),
+            this.config.overrides,
         );
         const authCookieHeaders = generateLogoutHeaders(
             await this.getCookieParams({
                 isSignUpCookie: false,
             }),
+            this.config.overrides,
         );
 
         return {
@@ -388,10 +420,9 @@ export class BackendAuthClient<
         userId: UserId;
         requestHeaders: IncomingHttpHeaders;
         isSignUpCookie: boolean;
-    }): Promise<{
-        'set-cookie': string[];
-        [AuthHeaderName.CsrfToken]: string;
-    }> {
+    }): Promise<
+        Pick<RequiredAndNotNull<OutgoingHttpHeaders>, 'set-cookie'> & Record<CsrfHeaderName, string>
+    > {
         const oppositeCookieName = isSignUpCookie ? AuthCookieName.Auth : AuthCookieName.SignUp;
         const hasExistingOppositeCookie = requestHeaders.cookie?.includes(`${oppositeCookieName}=`);
 
@@ -400,6 +431,7 @@ export class BackendAuthClient<
                   await this.getCookieParams({
                       isSignUpCookie: !isSignUpCookie,
                   }),
+                  this.config.overrides,
               )
             : undefined;
 
@@ -408,6 +440,7 @@ export class BackendAuthClient<
             await this.getCookieParams({
                 isSignUpCookie,
             }),
+            this.config.overrides,
         );
 
         return {
@@ -416,6 +449,11 @@ export class BackendAuthClient<
                 newCookieHeaders['set-cookie'],
                 discardOppositeCookieHeaders?.['set-cookie'],
             ),
+            ...(isSignUpCookie
+                ? {
+                      [AuthHeaderName.IsSignUpAuth]: 'true',
+                  }
+                : {}),
         };
     }
 

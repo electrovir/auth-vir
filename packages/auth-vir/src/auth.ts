@@ -1,3 +1,4 @@
+import {type PartialWithUndefined} from '@augment-vir/common';
 import {type FullDate, type UtcTimezone} from 'date-vir';
 import {
     AuthCookieName,
@@ -6,7 +7,13 @@ import {
     extractCookieJwt,
     generateAuthCookie,
 } from './cookie.js';
-import {generateCsrfToken} from './csrf-token.js';
+import {
+    extractCsrfTokenHeader,
+    generateCsrfToken,
+    parseCsrfToken,
+    storeCsrfToken,
+    wipeCurrentCsrfToken,
+} from './csrf-token.js';
 import {AuthHeaderName} from './headers.js';
 import {type ParseJwtParams} from './jwt/jwt.js';
 
@@ -44,6 +51,21 @@ export type UserIdResult<UserId extends string | number> = {
     cookieName: string;
 };
 
+function readCsrfTokenHeader(
+    headers: HeaderContainer,
+    overrides: PartialWithUndefined<{
+        csrfHeaderName: string;
+    }>,
+): string | undefined {
+    const rawCsrfToken = readHeader(headers, overrides.csrfHeaderName || AuthHeaderName.CsrfToken);
+
+    if (!rawCsrfToken) {
+        return undefined;
+    }
+
+    return parseCsrfToken(rawCsrfToken).csrfToken?.token || rawCsrfToken;
+}
+
 /**
  * Extract the user id from a request by checking both the request cookie and CSRF token. This is
  * used by host (backend) code to help verify a request. After extracting the user id using this,
@@ -56,9 +78,12 @@ export async function extractUserIdFromRequestHeaders<UserId extends string | nu
     headers: HeaderContainer,
     jwtParams: Readonly<ParseJwtParams>,
     cookieName: string = AuthCookieName.Auth,
+    overrides: PartialWithUndefined<{
+        csrfHeaderName: string;
+    }> = {},
 ): Promise<Readonly<UserIdResult<UserId>> | undefined> {
     try {
-        const csrfToken = readHeader(headers, AuthHeaderName.CsrfToken);
+        const csrfToken = readCsrfTokenHeader(headers, overrides);
         const cookie = readHeader(headers, 'cookie');
 
         if (!cookie || !csrfToken) {
@@ -87,6 +112,7 @@ export async function extractUserIdFromRequestHeaders<UserId extends string | nu
  * circumstances where you cannot rely on client-side JavaScript to insert the CSRF token.
  *
  * @deprecated Prefer {@link extractUserIdFromRequestHeaders} instead: it is more secure.
+ * @category Auth : Host
  */
 export async function insecureExtractUserIdFromCookieAlone<UserId extends string | number>(
     headers: HeaderContainer,
@@ -121,26 +147,35 @@ export async function insecureExtractUserIdFromCookieAlone<UserId extends string
  *
  * @category Auth : Host
  */
-export async function generateSuccessfulLoginHeaders(
+export async function generateSuccessfulLoginHeaders<
+    CsrfHeaderName extends string = AuthHeaderName.CsrfToken,
+>(
     /** The id from your database of the user you're authenticating. */
     userId: string | number,
     cookieConfig: Readonly<CookieParams>,
-): Promise<{
-    'set-cookie': string;
-    [AuthHeaderName.CsrfToken]: string;
-}> {
-    const csrfToken = generateCsrfToken();
+    overrides: PartialWithUndefined<{
+        csrfHeaderName: CsrfHeaderName;
+    }> = {},
+): Promise<
+    {
+        'set-cookie': string;
+    } & Record<CsrfHeaderName, string>
+> {
+    const csrfToken = generateCsrfToken(cookieConfig.cookieDuration);
+    const csrfHeaderName = (overrides.csrfHeaderName || AuthHeaderName.CsrfToken) as CsrfHeaderName;
 
     return {
         'set-cookie': await generateAuthCookie(
             {
-                csrfToken,
+                csrfToken: csrfToken.token,
                 userId,
             },
             cookieConfig,
         ),
-        [AuthHeaderName.CsrfToken]: csrfToken,
-    };
+        [csrfHeaderName]: JSON.stringify(csrfToken),
+    } as {
+        'set-cookie': string;
+    } & Record<CsrfHeaderName, string>;
 }
 
 /**
@@ -149,11 +184,22 @@ export async function generateSuccessfulLoginHeaders(
  *
  * @category Auth : Host
  */
-export function generateLogoutHeaders(...params: Parameters<typeof clearAuthCookie>) {
+export function generateLogoutHeaders<CsrfHeaderName extends string = AuthHeaderName.CsrfToken>(
+    cookieConfig: Readonly<Pick<CookieParams, 'cookieName' | 'hostOrigin' | 'isDev'>>,
+    overrides: PartialWithUndefined<{
+        csrfHeaderName: CsrfHeaderName;
+    }> = {},
+): {
+    'set-cookie': string;
+} & Record<CsrfHeaderName, string> {
+    const csrfHeaderName = (overrides.csrfHeaderName || AuthHeaderName.CsrfToken) as CsrfHeaderName;
+
     return {
-        'set-cookie': clearAuthCookie(...params),
-        [AuthHeaderName.CsrfToken]: 'redacted',
-    };
+        'set-cookie': clearAuthCookie(cookieConfig),
+        [csrfHeaderName]: 'redacted',
+    } as {
+        'set-cookie': string;
+    } & Record<CsrfHeaderName, string>;
 }
 
 /**
@@ -167,77 +213,28 @@ export function generateLogoutHeaders(...params: Parameters<typeof clearAuthCook
  */
 export function handleAuthResponse(
     response: Readonly<Pick<Response, 'ok' | 'headers'>>,
-    overrides: {
+    overrides: PartialWithUndefined<{
         /**
          * Allows mocking or overriding the global `localStorage`.
          *
          * @default globalThis.localStorage
          */
-        localStorage?: Pick<Storage, 'setItem' | 'removeItem'>;
+        localStorage: Pick<Storage, 'setItem' | 'removeItem'>;
         /** Override the default CSRF token header name. */
-        csrfHeaderName?: string;
-    } = {},
+        csrfHeaderName: string;
+    }> = {},
 ) {
     if (!response.ok) {
         wipeCurrentCsrfToken(overrides);
         return;
     }
-    const headerName = overrides.csrfHeaderName || AuthHeaderName.CsrfToken;
 
-    const csrfToken = response.headers.get(headerName);
+    const {csrfToken} = extractCsrfTokenHeader(response, overrides);
 
     if (!csrfToken) {
         wipeCurrentCsrfToken(overrides);
         throw new Error('Did not receive any CSRF token.');
     }
 
-    (overrides.localStorage || globalThis.localStorage).setItem(headerName, csrfToken);
-}
-
-/**
- * Used in client (frontend) code to retrieve the current CSRF token in order to send it with
- * requests to the host (backend).
- *
- * @category Auth : Client
- */
-export function getCurrentCsrfToken(
-    overrides: {
-        /**
-         * Allows mocking or overriding the global `localStorage`.
-         *
-         * @default globalThis.localStorage
-         */
-        localStorage?: Pick<Storage, 'getItem'>;
-        /** Override the default CSRF token header name. */
-        csrfHeaderName?: string;
-    } = {},
-): string | undefined {
-    return (
-        (overrides.localStorage || globalThis.localStorage).getItem(
-            overrides.csrfHeaderName || AuthHeaderName.CsrfToken,
-        ) || undefined
-    );
-}
-
-/**
- * Wipes the current stored CSRF token. This should be used by client (frontend) code to logout a
- * user or react to a session timeout.
- *
- * @category Auth : Client
- */
-export function wipeCurrentCsrfToken(
-    overrides: {
-        /**
-         * Allows mocking or overriding the global `localStorage`.
-         *
-         * @default globalThis.localStorage
-         */
-        localStorage?: Pick<Storage, 'removeItem'>;
-        /** Override the default CSRF token header name. */
-        csrfHeaderName?: string;
-    } = {},
-) {
-    return (overrides.localStorage || globalThis.localStorage).removeItem(
-        overrides.csrfHeaderName || AuthHeaderName.CsrfToken,
-    );
+    storeCsrfToken(csrfToken, overrides);
 }

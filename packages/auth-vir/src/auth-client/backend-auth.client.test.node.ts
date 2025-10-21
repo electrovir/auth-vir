@@ -1,5 +1,12 @@
 import {assert, check} from '@augment-vir/assert';
-import {type AnyObject, filterMap, type SelectFrom, wait} from '@augment-vir/common';
+import {
+    type AnyObject,
+    ensureArray,
+    filterMap,
+    selectFrom,
+    type SelectFrom,
+    wait,
+} from '@augment-vir/common';
 import {describe, it, type UniversalTestContext} from '@augment-vir/test';
 import {type IncomingHttpHeaders} from 'node:http';
 import {
@@ -12,14 +19,17 @@ import {type EmptyObject} from 'type-fest';
 import {testPrismaSchemaFilePath} from '../file-paths.mock.js';
 import {type Prisma, PrismaClient, type User} from '../generated/client.js';
 import {type UserId} from '../generated/models.js';
+import {AuthHeaderName} from '../headers.js';
 import {generateNewJwtKeys} from '../jwt/jwt-keys.js';
 import {BackendAuthClient, type BackendAuthClientConfig} from './backend-auth.client.js';
 
-function setCookieHeaderToCookieHeader(setCookies: string[]): string {
+function setCookieHeaderToRegularCookieHeader(setCookies: string[] | string): string {
     /** Only keep the first "key=value", the cookie value. */
-    return filterMap(setCookies, (cookie) => cookie.split(';')[0]?.trim(), check.isTruthy).join(
-        '; ',
-    );
+    return filterMap(
+        ensureArray(setCookies),
+        (cookie) => cookie.split(';')[0]?.trim(),
+        check.isTruthy,
+    ).join('; ');
 }
 
 const defaultMockSeedData: PrismaAddModelData<PrismaClient, Prisma.TypeMap> = {
@@ -30,7 +40,7 @@ const defaultMockSeedData: PrismaAddModelData<PrismaClient, Prisma.TypeMap> = {
     ],
 };
 
-async function setupAuthClientTest<AssumedUserParams extends AnyObject = EmptyObject>({
+async function setupBackendAuthClientTest<AssumedUserParams extends AnyObject = EmptyObject>({
     testContext,
     seedDataOverride,
     authClientConfigOverrides = {},
@@ -38,7 +48,12 @@ async function setupAuthClientTest<AssumedUserParams extends AnyObject = EmptyOb
     testContext: UniversalTestContext;
     seedDataOverride?: PrismaAddModelData<PrismaClient, Prisma.TypeMap> | undefined;
     authClientConfigOverrides?: Partial<
-        BackendAuthClientConfig<SelectFrom<User, {id: true; name: true}>, UserId, AssumedUserParams>
+        BackendAuthClientConfig<
+            SelectFrom<User, {id: true; name: true}>,
+            UserId,
+            AuthHeaderName.CsrfToken,
+            AssumedUserParams
+        >
     >;
 }) {
     const {prismaClient} = await createPrismaClient(PrismaDatabaseEngine.Postgres, PrismaClient, {
@@ -66,6 +81,7 @@ async function setupAuthClientTest<AssumedUserParams extends AnyObject = EmptyOb
     const backendAuthClient = new BackendAuthClient<
         SelectFrom<User, {id: true; name: true}>,
         UserId,
+        AuthHeaderName.CsrfToken,
         AssumedUserParams
     >({
         getJetKeys() {
@@ -96,7 +112,7 @@ async function setupAuthClientTest<AssumedUserParams extends AnyObject = EmptyOb
 
 describe(BackendAuthClient.name, () => {
     it('gets a secure user', async (testContext) => {
-        const {backendAuthClient, mockUser} = await setupAuthClientTest({testContext});
+        const {backendAuthClient, mockUser} = await setupBackendAuthClientTest({testContext});
 
         assert.isDefined(mockUser, 'Failed to find mock user.');
 
@@ -107,8 +123,8 @@ describe(BackendAuthClient.name, () => {
         });
 
         const requestHeaders: IncomingHttpHeaders = {
-            ...cookieHeaders,
-            cookie: setCookieHeaderToCookieHeader(cookieHeaders['set-cookie']),
+            [AuthHeaderName.CsrfToken]: cookieHeaders[AuthHeaderName.CsrfToken],
+            cookie: setCookieHeaderToRegularCookieHeader(cookieHeaders['set-cookie']),
         };
 
         const userResult = await backendAuthClient.getSecureUser({
@@ -124,7 +140,7 @@ describe(BackendAuthClient.name, () => {
         }>();
     });
     it('gets an insecure user', async (testContext) => {
-        const {backendAuthClient, mockUser} = await setupAuthClientTest({testContext});
+        const {backendAuthClient, mockUser} = await setupBackendAuthClientTest({testContext});
 
         assert.isDefined(mockUser, 'Failed to find mock user.');
 
@@ -136,7 +152,7 @@ describe(BackendAuthClient.name, () => {
 
         /** Intentionally without the CSRF token header. */
         const requestHeaders: IncomingHttpHeaders = {
-            cookie: setCookieHeaderToCookieHeader(cookieHeaders['set-cookie']),
+            cookie: setCookieHeaderToRegularCookieHeader(cookieHeaders['set-cookie']),
         };
 
         const secureUserResult = await backendAuthClient.getSecureUser({
@@ -153,7 +169,7 @@ describe(BackendAuthClient.name, () => {
         assert.deepEquals(insecureUserResult.user, mockUser);
     });
     it('fails after session timeout', async (testContext) => {
-        const {backendAuthClient, mockUser} = await setupAuthClientTest({
+        const {backendAuthClient, mockUser} = await setupBackendAuthClientTest({
             testContext,
             authClientConfigOverrides: {
                 userSessionIdleTimeout: {
@@ -171,8 +187,10 @@ describe(BackendAuthClient.name, () => {
         });
 
         const requestHeaders: IncomingHttpHeaders = {
-            ...cookieHeaders,
-            cookie: setCookieHeaderToCookieHeader(cookieHeaders['set-cookie']),
+            ...selectFrom(cookieHeaders, {
+                [AuthHeaderName.CsrfToken]: true,
+            }),
+            cookie: setCookieHeaderToRegularCookieHeader(cookieHeaders['set-cookie']),
         };
 
         const userResult = await backendAuthClient.getSecureUser({

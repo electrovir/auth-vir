@@ -44,14 +44,14 @@ function setupAuthState() {
 async function loadUser(
     apiPromise: Promise<DemoApi>,
 ): Promise<DemoService['endpoints']['/user']['ResponseType'] | undefined> {
-    const csrfToken = getCurrentCsrfToken();
+    const {csrfToken} = getCurrentCsrfToken();
 
     if (csrfToken) {
         const api = await apiPromise;
         const output = await api.endpoints['/user'].fetch({
             options: {
                 headers: {
-                    [AuthHeaderName.CsrfToken]: csrfToken,
+                    [AuthHeaderName.CsrfToken]: csrfToken.token,
                 },
             },
         });
@@ -72,10 +72,10 @@ export async function connectToDemoApi(
     return generateApi(await mapServiceDevPort(demoService), {
         endpointFetch: {
             async fetch(url, init) {
-                const csrfToken = getCurrentCsrfToken();
+                const {csrfToken} = getCurrentCsrfToken();
                 const extraHeaders = csrfToken
                     ? {
-                          [AuthHeaderName.CsrfToken]: csrfToken,
+                          [AuthHeaderName.CsrfToken]: csrfToken.token,
                       }
                     : {};
 
