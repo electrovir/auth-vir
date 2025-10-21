@@ -60,16 +60,28 @@ export class FrontendAuthClient<AssumedUserParams extends JsonCompatibleObject =
         }
     }
 
-    /** @returns Whether the user assuming succeeded or not. */
-    public async assumeUser(assumedUserParams: Readonly<AssumedUserParams>): Promise<boolean> {
+    /**
+     * Assume the given user. Pass `undefined` to wipe the currently assumed user.
+     *
+     * @returns Whether the assumed user setting or clearing succeeded or not.
+     */
+    public async assumeUser(
+        assumedUserParams: Readonly<AssumedUserParams> | undefined,
+    ): Promise<boolean> {
+        const localStorage = this.config.overrides?.localStorage || globalThis.localStorage;
+        const storageKey =
+            this.config.overrides?.assumedUserHeaderName || AuthHeaderName.AssumedUser;
+
+        if (!assumedUserParams) {
+            localStorage.removeItem(storageKey);
+            return true;
+        }
+
         if (!(await this.config.canAssumeUser?.())) {
             return false;
         }
 
-        (this.config.overrides?.localStorage || globalThis.localStorage).setItem(
-            this.config.overrides?.assumedUserHeaderName || AuthHeaderName.AssumedUser,
-            JSON.stringify(assumedUserParams),
-        );
+        localStorage.setItem(storageKey, JSON.stringify(assumedUserParams));
 
         return true;
     }

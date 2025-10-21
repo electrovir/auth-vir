@@ -231,7 +231,7 @@ describe(FrontendAuthClient.name, () => {
         }>();
         const assumedMockUser = {userId: 'yo' as User['id']};
 
-        await frontendAuthClient.assumeUser(assumedMockUser);
+        assert.isFalse(await frontendAuthClient.assumeUser(assumedMockUser));
 
         assert.deepEquals(
             await frontendAuthClient.createAuthenticatedRequestInit(),
@@ -248,7 +248,7 @@ describe(FrontendAuthClient.name, () => {
         }>(() => true);
         const assumedMockUser = {userId: 'yo' as User['id']};
 
-        await frontendAuthClient.assumeUser(assumedMockUser);
+        assert.isTrue(await frontendAuthClient.assumeUser(assumedMockUser));
 
         assert.deepEquals(
             await frontendAuthClient.createAuthenticatedRequestInit(),
@@ -260,6 +260,12 @@ describe(FrontendAuthClient.name, () => {
             },
             'Should pass assumed user.',
         );
+
+        assert.isDefined(frontendAuthClient.getAssumedUser());
+
+        assert.isTrue(await frontendAuthClient.assumeUser(undefined));
+
+        assert.isUndefined(frontendAuthClient.getAssumedUser());
     });
     it('fails on invalid assumed user', async () => {
         const {frontendAuthClient, mockLocalStorage} = createMockFrontendAuthClient<{
@@ -301,7 +307,7 @@ describe(FrontendAuthClient.name, () => {
         });
         const assumedMockUser = {userId: 'yo' as User['id']};
 
-        await frontendAuthClient.assumeUser(assumedMockUser);
+        assert.isTrue(await frontendAuthClient.assumeUser(assumedMockUser));
 
         assert.deepEquals(
             await frontendAuthClient.createAuthenticatedRequestInit(),
