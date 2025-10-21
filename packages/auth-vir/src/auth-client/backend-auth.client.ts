@@ -65,7 +65,7 @@ export type BackendAuthClientConfig<
              * If this is set, we're attempting to load a database user for the purpose of assuming
              * their user identity. Otherwise, this is `undefined`.
              */
-            assumedUserParams: AssumedUserParams | undefined;
+            assumingUser: AssumedUserParams | undefined;
         }) => MaybePromise<DatabaseUser | undefined | null>;
         /**
          * Get JWT keys produced by {@link generateNewJwtKeys}. Make sure that each time this is
@@ -88,11 +88,11 @@ export type BackendAuthClientConfig<
          */
         assumeUser: {
             /**
-             * Handles assumed user header value.
+             * Parse the assumed user header value.
              *
              * @see {@link AuthHeaderName}
              */
-            handleAssumedUserData: (
+            parseAssumedUserHeaderValue: (
                 /**
                  * The assumed user header value.
                  *
@@ -107,13 +107,12 @@ export type BackendAuthClientConfig<
                 | undefined
             >;
             /**
-             * Return `true` to allow the current user (by the given id) to assume identities of
-             * other users. Return `false` to block it. It is recommended to only return `true` for
-             * admin users.
+             * Return `true` to allow the current/original user to assume identities of other users.
+             * Return `false` to block it. It is recommended to only return `true` for admin users.
              *
              * @see {@link AuthHeaderName}
              */
-            canAssumeUser: (params: {userId: UserId}) => MaybePromise<boolean>;
+            canAssumeUser: (originalUser: DatabaseUser) => MaybePromise<boolean>;
         };
         /**
          * This determines how long a cookie will be valid until it needs to be refreshed.
@@ -188,10 +187,10 @@ export class BackendAuthClient<
     protected async getDatabaseUser({
         isSignUpCookie,
         userId,
-        assumedUserParams,
+        assumingUser,
     }: {
         userId: UserId | undefined;
-        assumedUserParams: AssumedUserParams | undefined;
+        assumingUser: AssumedUserParams | undefined;
         isSignUpCookie: boolean;
     }): Promise<undefined | DatabaseUser> {
         if (!userId) {
@@ -199,7 +198,7 @@ export class BackendAuthClient<
         }
 
         const authenticatedUser = await this.config.getUserFromDatabase({
-            assumedUserParams,
+            assumingUser,
             userId,
             isSignUpCookie,
         });
@@ -268,18 +267,12 @@ export class BackendAuthClient<
     /** Reads the user's assumed user headers and, if configured, gets the assumed user. */
     protected async getAssumedUser({
         headers,
-        originalUserId,
+        user,
     }: {
-        originalUserId: UserId | undefined;
+        user: DatabaseUser;
         headers: IncomingHttpHeaders;
     }): Promise<DatabaseUser | undefined> {
-        if (
-            !originalUserId ||
-            !this.config.assumeUser ||
-            !(await this.config.assumeUser.canAssumeUser({
-                userId: originalUserId,
-            }))
-        ) {
+        if (!this.config.assumeUser || !(await this.config.assumeUser.canAssumeUser(user))) {
             return undefined;
         }
 
@@ -292,7 +285,7 @@ export class BackendAuthClient<
         }
 
         const parsedAssumedUserData =
-            await this.config.assumeUser.handleAssumedUserData(assumedUserHeader);
+            await this.config.assumeUser.parseAssumedUserHeaderValue(assumedUserHeader);
 
         if (!parsedAssumedUserData || !parsedAssumedUserData.userId) {
             return undefined;
@@ -301,7 +294,7 @@ export class BackendAuthClient<
         const assumedUser = await this.getDatabaseUser({
             isSignUpCookie: false,
             userId: parsedAssumedUserData.userId,
-            assumedUserParams: parsedAssumedUserData.assumedUserParams,
+            assumingUser: parsedAssumedUserData.assumedUserParams,
         });
 
         return assumedUser;
@@ -327,7 +320,7 @@ export class BackendAuthClient<
 
         const user = await this.getDatabaseUser({
             userId: userIdResult.userId,
-            assumedUserParams: undefined,
+            assumingUser: undefined,
             isSignUpCookie: !!isSignUpCookie,
         });
 
@@ -337,7 +330,7 @@ export class BackendAuthClient<
 
         const assumedUser = await this.getAssumedUser({
             headers: requestHeaders,
-            originalUserId: userIdResult.userId,
+            user,
         });
 
         const cookieRefreshHeaders =
@@ -345,19 +338,11 @@ export class BackendAuthClient<
                 userIdResult,
             })) || {};
 
-        if (assumedUser) {
-            return {
-                user: assumedUser,
-                isAssumed: true,
-                responseHeaders: cookieRefreshHeaders,
-            };
-        } else {
-            return {
-                user,
-                isAssumed: false,
-                responseHeaders: cookieRefreshHeaders,
-            };
-        }
+        return {
+            user: assumedUser || user,
+            isAssumed: !!assumedUser,
+            responseHeaders: cookieRefreshHeaders,
+        };
     }
 
     /**
@@ -481,7 +466,7 @@ export class BackendAuthClient<
         const user = await this.getDatabaseUser({
             isSignUpCookie: false,
             userId: userIdResult.userId,
-            assumedUserParams: undefined,
+            assumingUser: undefined,
         });
 
         if (!user) {
