@@ -482,7 +482,7 @@ export class BackendAuthClient<
         const secureUser = await this.getSecureUser(params);
 
         if (secureUser) {
-            return secureUser;
+            return {secureUser};
         }
 
         // eslint-disable-next-line @typescript-eslint/no-deprecated
