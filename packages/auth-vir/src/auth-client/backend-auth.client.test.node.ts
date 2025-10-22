@@ -1,14 +1,7 @@
 import {assert, check} from '@augment-vir/assert';
-import {
-    type AnyObject,
-    ensureArray,
-    filterMap,
-    selectFrom,
-    type SelectFrom,
-    wait,
-} from '@augment-vir/common';
+import {type AnyObject, ensureArray, filterMap, type SelectFrom, wait} from '@augment-vir/common';
 import {describe, it, type UniversalTestContext} from '@augment-vir/test';
-import {type IncomingHttpHeaders} from 'node:http';
+import {type IncomingHttpHeaders, type OutgoingHttpHeaders} from 'node:http';
 import {
     createPrismaClient,
     type PrismaAddModelData,
@@ -23,7 +16,9 @@ import {AuthHeaderName} from '../headers.js';
 import {generateNewJwtKeys} from '../jwt/jwt-keys.js';
 import {BackendAuthClient, type BackendAuthClientConfig} from './backend-auth.client.js';
 
-function setCookieHeaderToRegularCookieHeader(setCookies: string[] | string): string {
+function setCookieHeaderToRegularCookieHeader(headers: Readonly<OutgoingHttpHeaders>): string {
+    const setCookies = headers['set-cookie'] || [];
+
     /** Only keep the first "key=value", the cookie value. */
     return filterMap(
         ensureArray(setCookies),
@@ -118,8 +113,8 @@ describe(BackendAuthClient.name, () => {
         });
 
         const requestHeaders: IncomingHttpHeaders = {
-            [AuthHeaderName.CsrfToken]: cookieHeaders[AuthHeaderName.CsrfToken],
-            cookie: setCookieHeaderToRegularCookieHeader(cookieHeaders['set-cookie']),
+            [AuthHeaderName.CsrfToken]: String(cookieHeaders[AuthHeaderName.CsrfToken]),
+            cookie: setCookieHeaderToRegularCookieHeader(cookieHeaders),
         };
 
         const userResult = await backendAuthClient.getSecureUser({
@@ -147,7 +142,7 @@ describe(BackendAuthClient.name, () => {
 
         /** Intentionally without the CSRF token header. */
         const requestHeaders: IncomingHttpHeaders = {
-            cookie: setCookieHeaderToRegularCookieHeader(cookieHeaders['set-cookie']),
+            cookie: setCookieHeaderToRegularCookieHeader(cookieHeaders),
         };
 
         const secureUserResult = await backendAuthClient.getSecureUser({
@@ -182,10 +177,8 @@ describe(BackendAuthClient.name, () => {
         });
 
         const requestHeaders: IncomingHttpHeaders = {
-            ...selectFrom(cookieHeaders, {
-                [AuthHeaderName.CsrfToken]: true,
-            }),
-            cookie: setCookieHeaderToRegularCookieHeader(cookieHeaders['set-cookie']),
+            [AuthHeaderName.CsrfToken]: String(cookieHeaders[AuthHeaderName.CsrfToken]),
+            cookie: setCookieHeaderToRegularCookieHeader(cookieHeaders),
         };
 
         const userResult = await backendAuthClient.getSecureUser({

@@ -4,7 +4,6 @@ import {
     type JsonCompatibleObject,
     type MaybePromise,
     type PartialWithUndefined,
-    type RequiredAndNotNull,
 } from '@augment-vir/common';
 import {calculateRelativeDate, getNowInUtcTimezone, isDateAfter, type AnyDuration} from 'date-vir';
 import {type IncomingHttpHeaders, type OutgoingHttpHeaders} from 'node:http';
@@ -426,9 +425,7 @@ export class BackendAuthClient<
         userId: UserId;
         requestHeaders: IncomingHttpHeaders;
         isSignUpCookie: boolean;
-    }): Promise<
-        Pick<RequiredAndNotNull<OutgoingHttpHeaders>, 'set-cookie'> & Record<CsrfHeaderName, string>
-    > {
+    }): Promise<OutgoingHttpHeaders> {
         const oppositeCookieName = isSignUpCookie ? AuthCookieName.Auth : AuthCookieName.SignUp;
         const hasExistingOppositeCookie = requestHeaders.cookie?.includes(`${oppositeCookieName}=`);
 
