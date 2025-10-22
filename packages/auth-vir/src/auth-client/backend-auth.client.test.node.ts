@@ -79,7 +79,7 @@ async function setupBackendAuthClientTest<AssumedUserParams extends AnyObject = 
         AssumedUserParams,
         AuthHeaderName.CsrfToken
     >({
-        getJetKeys() {
+        getJwtKeys() {
             return jwtKeys;
         },
         async getUserFromDatabase({userId}) {

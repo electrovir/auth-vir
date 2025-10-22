@@ -72,7 +72,7 @@ export type BackendAuthClientConfig<
          * called, the same JWT keys are returned (do not call {@link generateNewJwtKeys} each time
          * this is called). Any time the JWT keys change, all current sessions will terminate.
          */
-        getJetKeys: () => MaybePromise<Readonly<RawJwtKeys>>;
+        getJwtKeys: () => MaybePromise<Readonly<RawJwtKeys>>;
         /**
          * When `isDev` is set, cookies do not require HTTPS (so they can be used with
          * http://localhost).
@@ -350,7 +350,7 @@ export class BackendAuthClient<
      * something else too.
      */
     public async getJwtParams(): Promise<Readonly<CreateJwtParams>> {
-        const rawJwtKeys = await this.config.getJetKeys();
+        const rawJwtKeys = await this.config.getJwtKeys();
 
         const cacheKey = JSON.stringify(rawJwtKeys);
 
