@@ -16,8 +16,8 @@ generator stringDates {
     output   = "../src/generated"
 }
 
-generator taggedIds {
-    provider = "prisma-tagged-ids"
+generator brandedFields {
+    provider = "prisma-branded-fields"
     output   = "../src/generated"
 }
 
