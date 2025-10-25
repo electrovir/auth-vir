@@ -70,14 +70,24 @@ export type FrontendAuthClientConfig = PartialWithUndefined<{
  */
 export class FrontendAuthClient<AssumedUserParams extends JsonCompatibleObject = EmptyObject> {
     protected userCheckInterval: undefined | ReturnType<typeof createBlockingInterval>;
+    /**
+     * Keeps track of whether the latest state of auth is logged in (`true`) or not (`false`). This
+     * is used for determining if the check user interval should keep running.
+     */
+    protected isLatestAuthorized = false;
 
     constructor(protected readonly config: FrontendAuthClientConfig = {}) {
         if (config.checkUser) {
             this.userCheckInterval = createBlockingInterval(
                 async () => {
+                    /** No need to check current user status when there is no user. */
+                    if (!this.isLatestAuthorized) {
+                        return;
+                    }
+
                     const response = await config.checkUser?.performCheck();
                     if (response) {
-                        await this.verifyResponseAuth({
+                        this.isLatestAuthorized = await this.verifyResponseAuth({
                             status: response.status,
                         });
                     }
@@ -184,6 +194,7 @@ export class FrontendAuthClient<AssumedUserParams extends JsonCompatibleObject =
 
     /** Wipes the current user auth. */
     public async logout() {
+        this.isLatestAuthorized = false;
         await this.config.authClearedCallback?.();
         wipeCurrentCsrfToken(this.config.overrides);
     }
@@ -218,11 +229,14 @@ export class FrontendAuthClient<AssumedUserParams extends JsonCompatibleObject =
         }
 
         storeCsrfToken(csrfToken, this.config.overrides);
+        this.isLatestAuthorized = true;
     }
 
     /**
      * Use to verify _all_ responses received from the backend. Immediately logs the user out once
      * an unauthorized response is detected.
+     *
+     * @returns `true` if the auth is okay, `false` otherwise.
      */
     public async verifyResponseAuth(
         response: Readonly<
@@ -237,12 +251,15 @@ export class FrontendAuthClient<AssumedUserParams extends JsonCompatibleObject =
                 'headers'
             >
         >,
-    ): Promise<void> {
+    ): Promise<boolean> {
         if (
             response.status === HttpStatus.Unauthorized &&
             !response.headers?.get(AuthHeaderName.IsSignUpAuth)
         ) {
             await this.logout();
+            return false;
         }
+
+        return true;
     }
 }
