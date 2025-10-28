@@ -7,6 +7,7 @@ import {
     type SelectFrom,
 } from '@augment-vir/common';
 import {type AnyDuration} from 'date-vir';
+import {isPageActive} from 'page-active';
 import {type EmptyObject} from 'type-fest';
 import {
     CsrfTokenFailureReason,
@@ -78,6 +79,10 @@ export class FrontendAuthClient<AssumedUserParams extends JsonCompatibleObject =
         if (config.checkUser) {
             this.userCheckInterval = createBlockingInterval(
                 async () => {
+                    if (!isPageActive()) {
+                        /** Do not refresh the user when the page is inactive. */
+                        return;
+                    }
                     const response = await config.checkUser?.performCheck();
 
                     if (response) {

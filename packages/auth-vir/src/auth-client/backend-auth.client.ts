@@ -123,7 +123,7 @@ export type BackendAuthClientConfig<
          * How long before a user's session times out when we should start trying to refresh their
          * session.
          *
-         * @default {minutes: 5}
+         * @default {minutes: 10}
          */
         sessionRefreshThreshold: Readonly<AnyDuration>;
         overrides: PartialWithUndefined<{
@@ -135,6 +135,10 @@ export type BackendAuthClientConfig<
 
 const defaultSessionIdleTimeout: Readonly<AnyDuration> = {
     minutes: 20,
+};
+
+const defaultSessionRefreshThreshold: Readonly<AnyDuration> = {
+    minutes: 10,
 };
 
 /**
@@ -245,9 +249,7 @@ export class BackendAuthClient<
         const isRefreshReady = isDateAfter({
             fullDate: calculateRelativeDate(
                 now,
-                this.config.sessionRefreshThreshold || {
-                    minutes: 5,
-                },
+                this.config.sessionRefreshThreshold || defaultSessionRefreshThreshold,
             ),
             relativeTo: userIdResult.jwtExpiration,
         });
