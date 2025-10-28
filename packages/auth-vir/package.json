@@ -1,6 +1,6 @@
 {
     "name": "auth-vir",
-    "version": "2.3.7",
+    "version": "2.3.8",
     "description": "Auth made easy and secure via JWT cookies, CSRF tokens, and password hashing helpers.",
     "keywords": [
         "auth",

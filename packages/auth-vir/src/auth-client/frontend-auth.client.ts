@@ -94,7 +94,7 @@ export class FrontendAuthClient<AssumedUserParams extends JsonCompatibleObject =
                         });
                     }
                 },
-                debounce: config.checkUser.debounce || {minutes: 5},
+                debounce: config.checkUser.debounce || {minutes: 1},
                 fireImmediately: false,
             });
         }
