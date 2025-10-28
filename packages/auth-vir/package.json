@@ -1,6 +1,6 @@
 {
     "name": "auth-vir",
-    "version": "2.3.6",
+    "version": "2.3.7",
     "description": "Auth made easy and secure via JWT cookies, CSRF tokens, and password hashing helpers.",
     "keywords": [
         "auth",
@@ -45,10 +45,10 @@
         "@augment-vir/assert": "^31.47.0",
         "@augment-vir/common": "^31.47.0",
         "date-vir": "^8.0.0",
+        "detect-activity": "^0.0.1",
         "hash-wasm": "^4.12.0",
         "jose": "^6.1.0",
         "object-shape-tester": "^6.9.3",
-        "page-active": "^1.0.3",
         "type-fest": "^5.1.0",
         "url-vir": "^2.1.6"
     },

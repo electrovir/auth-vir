@@ -1,5 +1,5 @@
 import {
-    createBlockingInterval,
+    type createBlockingInterval,
     HttpStatus,
     type JsonCompatibleObject,
     type MaybePromise,
@@ -7,7 +7,7 @@ import {
     type SelectFrom,
 } from '@augment-vir/common';
 import {type AnyDuration} from 'date-vir';
-import {isPageActive} from 'page-active';
+import {listenToActivity} from 'detect-activity';
 import {type EmptyObject} from 'type-fest';
 import {
     CsrfTokenFailureReason,
@@ -44,6 +44,9 @@ export type FrontendAuthClientConfig = PartialWithUndefined<{
          *
          * If the user is not currently authorized, this should return `undefined` to prevent
          * unnecessary network traffic.
+         *
+         * This will be called any time the user interacts with the page, debounced by the adjacent
+         * `debounce` property.
          */
         performCheck: () => MaybePromise<
             | SelectFrom<
@@ -54,8 +57,12 @@ export type FrontendAuthClientConfig = PartialWithUndefined<{
               >
             | undefined
         >;
-        /** @default {minutes: 1} */
-        interval?: AnyDuration | undefined;
+        /**
+         * Debounce for firing `performCheck`.
+         *
+         * @default {minutes: 1}
+         */
+        debounce?: AnyDuration | undefined;
     };
 
     overrides: PartialWithUndefined<{
@@ -77,12 +84,8 @@ export class FrontendAuthClient<AssumedUserParams extends JsonCompatibleObject =
 
     constructor(protected readonly config: FrontendAuthClientConfig = {}) {
         if (config.checkUser) {
-            this.userCheckInterval = createBlockingInterval(
-                async () => {
-                    if (!isPageActive()) {
-                        /** Do not refresh the user when the page is inactive. */
-                        return;
-                    }
+            listenToActivity({
+                listener: async () => {
                     const response = await config.checkUser?.performCheck();
 
                     if (response) {
@@ -91,8 +94,9 @@ export class FrontendAuthClient<AssumedUserParams extends JsonCompatibleObject =
                         });
                     }
                 },
-                config.checkUser.interval || {minutes: 1},
-            );
+                debounce: config.checkUser.debounce || {minutes: 5},
+                fireImmediately: false,
+            });
         }
     }
 
