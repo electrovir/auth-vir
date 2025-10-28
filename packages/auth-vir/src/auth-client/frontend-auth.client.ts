@@ -5,7 +5,6 @@ import {
     type MaybePromise,
     type PartialWithUndefined,
     type SelectFrom,
-    type SetOptionalWithUndefined,
 } from '@augment-vir/common';
 import {type AnyDuration} from 'date-vir';
 import {type EmptyObject} from 'type-fest';
@@ -41,14 +40,18 @@ export type FrontendAuthClientConfig = PartialWithUndefined<{
          * Get a response from the backend to see if the user is still authenticated. If the
          * response returns a non-authorized status, the user is wiped. Any other status is
          * ignored.
+         *
+         * If the user is not currently authorized, this should return `undefined` to prevent
+         * unnecessary network traffic.
          */
         performCheck: () => MaybePromise<
-            SelectFrom<
-                Response,
-                {
-                    status: true;
-                }
-            >
+            | SelectFrom<
+                  Response,
+                  {
+                      status: true;
+                  }
+              >
+            | undefined
         >;
         /** @default {minutes: 1} */
         interval?: AnyDuration | undefined;
@@ -70,24 +73,15 @@ export type FrontendAuthClientConfig = PartialWithUndefined<{
  */
 export class FrontendAuthClient<AssumedUserParams extends JsonCompatibleObject = EmptyObject> {
     protected userCheckInterval: undefined | ReturnType<typeof createBlockingInterval>;
-    /**
-     * Keeps track of whether the latest state of auth is logged in (`true`) or not (`false`). This
-     * is used for determining if the check user interval should keep running.
-     */
-    protected isLatestAuthorized = false;
 
     constructor(protected readonly config: FrontendAuthClientConfig = {}) {
         if (config.checkUser) {
             this.userCheckInterval = createBlockingInterval(
                 async () => {
-                    /** No need to check current user status when there is no user. */
-                    if (!this.isLatestAuthorized) {
-                        return;
-                    }
-
                     const response = await config.checkUser?.performCheck();
+
                     if (response) {
-                        this.isLatestAuthorized = await this.verifyResponseAuth({
+                        await this.verifyResponseAuth({
                             status: response.status,
                         });
                     }
@@ -194,7 +188,6 @@ export class FrontendAuthClient<AssumedUserParams extends JsonCompatibleObject =
 
     /** Wipes the current user auth. */
     public async logout() {
-        this.isLatestAuthorized = false;
         await this.config.authClearedCallback?.();
         wipeCurrentCsrfToken(this.config.overrides);
     }
@@ -229,7 +222,6 @@ export class FrontendAuthClient<AssumedUserParams extends JsonCompatibleObject =
         }
 
         storeCsrfToken(csrfToken, this.config.overrides);
-        this.isLatestAuthorized = true;
     }
 
     /**
@@ -240,15 +232,14 @@ export class FrontendAuthClient<AssumedUserParams extends JsonCompatibleObject =
      */
     public async verifyResponseAuth(
         response: Readonly<
-            SetOptionalWithUndefined<
+            PartialWithUndefined<
                 SelectFrom<
                     Response,
                     {
                         status: true;
                         headers: true;
                     }
-                >,
-                'headers'
+                >
             >
         >,
     ): Promise<boolean> {
@@ -258,6 +249,12 @@ export class FrontendAuthClient<AssumedUserParams extends JsonCompatibleObject =
         ) {
             await this.logout();
             return false;
+        }
+
+        /** If the response has a new CSRF token, store it. */
+        const {csrfToken} = extractCsrfTokenHeader(response, this.config.overrides);
+        if (csrfToken) {
+            storeCsrfToken(csrfToken, this.config.overrides);
         }
 
         return true;

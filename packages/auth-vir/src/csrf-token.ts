@@ -77,14 +77,14 @@ export type GetCsrfTokenResult = RequireExactlyOne<{
  * @category Auth : Client
  */
 export function extractCsrfTokenHeader(
-    response: Readonly<SelectFrom<Response, {headers: true}>>,
+    response: Readonly<PartialWithUndefined<SelectFrom<Response, {headers: true}>>>,
     overrides: PartialWithUndefined<{
         csrfHeaderName: string;
     }> = {},
 ): Readonly<GetCsrfTokenResult> {
     const csrfTokenHeaderName = overrides.csrfHeaderName || AuthHeaderName.CsrfToken;
 
-    const rawCsrfToken = response.headers.get(csrfTokenHeaderName);
+    const rawCsrfToken = response.headers?.get(csrfTokenHeaderName);
 
     return parseCsrfToken(rawCsrfToken);
 }
