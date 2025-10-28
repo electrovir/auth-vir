@@ -1,6 +1,6 @@
 {
     "name": "@evir/demo",
-    "version": "2.3.4",
+    "version": "2.3.5",
     "private": true,
     "license": "(MIT or CC0 1.0)",
     "type": "module",
@@ -10,12 +10,12 @@
         "test": "exit 0"
     },
     "dependencies": {
-        "@augment-vir/assert": "^31.45.0",
-        "@augment-vir/common": "^31.45.0",
-        "@rest-vir/define-service": "^1.2.5",
-        "@rest-vir/implement-service": "^1.2.5",
-        "@rest-vir/run-service": "^1.2.5",
-        "auth-vir": "^2.3.4",
+        "@augment-vir/assert": "^31.47.0",
+        "@augment-vir/common": "^31.47.0",
+        "@rest-vir/define-service": "^1.2.6",
+        "@rest-vir/implement-service": "^1.2.6",
+        "@rest-vir/run-service": "^1.2.6",
+        "auth-vir": "^2.3.5",
         "element-vir": "^26.11.1",
         "vira": "^28.1.0"
     },
