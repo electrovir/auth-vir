@@ -1,6 +1,6 @@
 {
     "name": "@evir/auth-vir-mono-root",
-    "version": "2.3.8",
+    "version": "2.3.9",
     "private": true,
     "homepage": "https://github.com/electrovir/auth-vir",
     "bugs": {

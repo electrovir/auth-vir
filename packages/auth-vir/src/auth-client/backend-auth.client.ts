@@ -305,9 +305,16 @@ export class BackendAuthClient<
     public async getSecureUser({
         requestHeaders,
         isSignUpCookie,
+        allowUserAuthRefresh,
     }: {
         requestHeaders: IncomingHttpHeaders;
-        isSignUpCookie?: boolean | undefined;
+        isSignUpCookie: boolean;
+        /**
+         * If true, this method will generate headers to refresh the user's auth session. This
+         * should likely only be done with a specific endpoint, like whatever endpoint you trigger
+         * with the frontend auth client's `checkUser.performCheck` callback.
+         */
+        allowUserAuthRefresh: boolean;
     }): Promise<GetUserResult<DatabaseUser> | undefined> {
         const userIdResult = await extractUserIdFromRequestHeaders<UserId>(
             requestHeaders,
@@ -322,7 +329,7 @@ export class BackendAuthClient<
         const user = await this.getDatabaseUser({
             userId: userIdResult.userId,
             assumingUser: undefined,
-            isSignUpCookie: !!isSignUpCookie,
+            isSignUpCookie,
         });
 
         if (!user) {
@@ -342,7 +349,7 @@ export class BackendAuthClient<
         return {
             user: assumedUser || user,
             isAssumed: !!assumedUser,
-            responseHeaders: cookieRefreshHeaders,
+            responseHeaders: allowUserAuthRefresh ? cookieRefreshHeaders : {},
         };
     }
 
@@ -465,7 +472,13 @@ export class BackendAuthClient<
     /** Combines `.getInsecureUser()` and `.getSecureUser()` into one method. */
     public async getInsecureOrSecureUser(params: {
         requestHeaders: IncomingHttpHeaders;
-        isSignUpCookie?: boolean | undefined;
+        isSignUpCookie: boolean;
+        /**
+         * If true, this method will generate headers to refresh the user's auth session. This
+         * should likely only be done with a specific endpoint, like whatever endpoint you trigger
+         * with the frontend auth client's `checkUser.performCheck` callback.
+         */
+        allowUserAuthRefresh: boolean;
     }): Promise<
         RequireOneOrNone<{
             secureUser: GetUserResult<DatabaseUser>;
@@ -497,8 +510,15 @@ export class BackendAuthClient<
      */
     public async getInsecureUser({
         requestHeaders,
+        allowUserAuthRefresh,
     }: {
         requestHeaders: IncomingHttpHeaders;
+        /**
+         * If true, this method will generate headers to refresh the user's auth session. This
+         * should likely only be done with a specific endpoint, like whatever endpoint you trigger
+         * with the frontend auth client's `checkUser.performCheck` callback.
+         */
+        allowUserAuthRefresh: boolean;
     }): Promise<GetUserResult<DatabaseUser> | undefined> {
         // eslint-disable-next-line @typescript-eslint/no-deprecated
         const userIdResult = await insecureExtractUserIdFromCookieAlone<UserId>(
@@ -521,13 +541,16 @@ export class BackendAuthClient<
             return undefined;
         }
 
+        const refreshHeaders =
+            allowUserAuthRefresh &&
+            (await this.createCookieRefreshHeaders({
+                userIdResult,
+            }));
+
         return {
             user,
             isAssumed: false,
-            responseHeaders:
-                (await this.createCookieRefreshHeaders({
-                    userIdResult,
-                })) || {},
+            responseHeaders: refreshHeaders || {},
         };
     }
 }

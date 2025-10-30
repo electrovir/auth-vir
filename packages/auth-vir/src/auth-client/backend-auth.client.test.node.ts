@@ -119,6 +119,8 @@ describe(BackendAuthClient.name, () => {
 
         const userResult = await backendAuthClient.getSecureUser({
             requestHeaders,
+            isSignUpCookie: false,
+            allowUserAuthRefresh: true,
         });
         assert.isDefined(userResult, 'No user result');
 
@@ -147,12 +149,15 @@ describe(BackendAuthClient.name, () => {
 
         const secureUserResult = await backendAuthClient.getSecureUser({
             requestHeaders,
+            isSignUpCookie: false,
+            allowUserAuthRefresh: true,
         });
         assert.isUndefined(secureUserResult, 'Without a CSRF token, the secure user should fail.');
 
         // eslint-disable-next-line @typescript-eslint/no-deprecated
         const insecureUserResult = await backendAuthClient.getInsecureUser({
             requestHeaders,
+            allowUserAuthRefresh: true,
         });
         assert.isDefined(insecureUserResult, 'No insecure user result.');
 
@@ -183,6 +188,8 @@ describe(BackendAuthClient.name, () => {
 
         const userResult = await backendAuthClient.getSecureUser({
             requestHeaders,
+            isSignUpCookie: false,
+            allowUserAuthRefresh: true,
         });
         assert.isDefined(userResult, 'No user result');
 
@@ -194,6 +201,8 @@ describe(BackendAuthClient.name, () => {
         assert.isUndefined(
             await backendAuthClient.getSecureUser({
                 requestHeaders,
+                isSignUpCookie: false,
+                allowUserAuthRefresh: true,
             }),
             'User session should have timed out.',
         );
