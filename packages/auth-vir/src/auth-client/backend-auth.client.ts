@@ -381,12 +381,15 @@ export class BackendAuthClient<
 
     /** Use these headers to log out the user. */
     public async createLogoutHeaders(
-        params: RequireExactlyOne<{
-            allCookies: true;
-            isSignUpCookie: boolean;
-            /** Overrides the client's already established `serviceOrigin`. */
-            serviceOrigin?: string | undefined;
-        }>,
+        params: Readonly<
+            RequireExactlyOne<{
+                allCookies: true;
+                isSignUpCookie: boolean;
+            }> & {
+                /** Overrides the client's already established `serviceOrigin`. */
+                serviceOrigin?: string | undefined;
+            }
+        >,
     ): Promise<
         Partial<Record<CsrfHeaderName, string>> & {
             'set-cookie': string[];
