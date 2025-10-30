@@ -168,6 +168,7 @@ export class BackendAuthClient<
     /** Get all the parameters used for cookie generation. */
     protected async getCookieParams({
         isSignUpCookie,
+        serviceOrigin,
     }: {
         /**
          * Set this to `true` when we are setting the initial cookie right after a user signs up.
@@ -175,11 +176,13 @@ export class BackendAuthClient<
          *
          * This should only be set to `true` when a new user is signing up.
          */
-        isSignUpCookie?: boolean | undefined;
+        isSignUpCookie: boolean;
+        /** Overrides the client's already established `serviceOrigin`. */
+        serviceOrigin: string | undefined;
     }): Promise<Readonly<CookieParams>> {
         return {
             cookieDuration: this.config.userSessionIdleTimeout || defaultSessionIdleTimeout,
-            hostOrigin: this.config.serviceOrigin,
+            hostOrigin: serviceOrigin || this.config.serviceOrigin,
             jwtParams: await this.getJwtParams(),
             isDev: this.config.isDev,
             cookieName: isSignUpCookie ? AuthCookieName.SignUp : AuthCookieName.Auth,
@@ -381,6 +384,8 @@ export class BackendAuthClient<
         params: RequireExactlyOne<{
             allCookies: true;
             isSignUpCookie: boolean;
+            /** Overrides the client's already established `serviceOrigin`. */
+            serviceOrigin?: string | undefined;
         }>,
     ): Promise<
         Partial<Record<CsrfHeaderName, string>> & {
@@ -392,6 +397,7 @@ export class BackendAuthClient<
                 ? (generateLogoutHeaders(
                       await this.getCookieParams({
                           isSignUpCookie: true,
+                          serviceOrigin: params.serviceOrigin,
                       }),
                       this.config.overrides,
                   ) satisfies Record<CsrfHeaderName, string>)
@@ -401,6 +407,7 @@ export class BackendAuthClient<
                 ? (generateLogoutHeaders(
                       await this.getCookieParams({
                           isSignUpCookie: false,
+                          serviceOrigin: params.serviceOrigin,
                       }),
                       this.config.overrides,
                   ) satisfies Record<CsrfHeaderName, string>)
@@ -430,10 +437,13 @@ export class BackendAuthClient<
         userId,
         requestHeaders,
         isSignUpCookie,
+        serviceOrigin,
     }: {
         userId: UserId;
         requestHeaders: IncomingHttpHeaders;
         isSignUpCookie: boolean;
+        /** Overrides the client's already established `serviceOrigin`. */
+        serviceOrigin?: string | undefined;
     }): Promise<OutgoingHttpHeaders> {
         const oppositeCookieName = isSignUpCookie ? AuthCookieName.Auth : AuthCookieName.SignUp;
         const hasExistingOppositeCookie = requestHeaders.cookie?.includes(`${oppositeCookieName}=`);
@@ -442,6 +452,7 @@ export class BackendAuthClient<
             ? generateLogoutHeaders(
                   await this.getCookieParams({
                       isSignUpCookie: !isSignUpCookie,
+                      serviceOrigin,
                   }),
                   this.config.overrides,
               )
@@ -451,6 +462,7 @@ export class BackendAuthClient<
             userId,
             await this.getCookieParams({
                 isSignUpCookie,
+                serviceOrigin,
             }),
             this.config.overrides,
         );
