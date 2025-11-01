@@ -79,6 +79,13 @@ export type BackendAuthClientConfig<
         isDev: boolean;
     } & PartialWithUndefined<{
         /**
+         * Optionally generate a service origin from request headers. The generated origin is used
+         * for set-cookie headers.
+         */
+        generateServiceOrigin(params: {
+            requestHeaders: Readonly<IncomingHttpHeaders>;
+        }): MaybePromise<undefined | string>;
+        /**
          * Set this to allow specific users (determined by `canAssumeUser`) to assume the identity
          * of other users. This should only be used for admins so that they can troubleshoot user
          * issues.
@@ -168,7 +175,7 @@ export class BackendAuthClient<
     /** Get all the parameters used for cookie generation. */
     protected async getCookieParams({
         isSignUpCookie,
-        serviceOrigin,
+        requestHeaders,
     }: {
         /**
          * Set this to `true` when we are setting the initial cookie right after a user signs up.
@@ -177,9 +184,12 @@ export class BackendAuthClient<
          * This should only be set to `true` when a new user is signing up.
          */
         isSignUpCookie: boolean;
-        /** Overrides the client's already established `serviceOrigin`. */
-        serviceOrigin?: string | undefined;
+        requestHeaders: Readonly<IncomingHttpHeaders> | undefined;
     }): Promise<Readonly<CookieParams>> {
+        const serviceOrigin = requestHeaders
+            ? await this.config.generateServiceOrigin?.({requestHeaders})
+            : undefined;
+
         return {
             cookieDuration: this.config.userSessionIdleTimeout || defaultSessionIdleTimeout,
             hostOrigin: serviceOrigin || this.config.serviceOrigin,
@@ -219,11 +229,10 @@ export class BackendAuthClient<
     /** Creates a `'cookie-set'` header to refresh the user's session cookie. */
     protected async createCookieRefreshHeaders({
         userIdResult,
-        serviceOrigin,
+        requestHeaders,
     }: {
         userIdResult: Readonly<UserIdResult<UserId>>;
-        /** Overrides the client's already established `serviceOrigin`. */
-        serviceOrigin?: string | undefined;
+        requestHeaders: IncomingHttpHeaders;
     }): Promise<OutgoingHttpHeaders | undefined> {
         const now = getNowInUtcTimezone();
 
@@ -262,10 +271,9 @@ export class BackendAuthClient<
 
         if (isRefreshReady) {
             return this.createLoginHeaders({
-                requestHeaders: {},
+                requestHeaders,
                 userId: userIdResult.userId,
                 isSignUpCookie: userIdResult.cookieName === AuthCookieName.SignUp,
-                serviceOrigin,
             });
         } else {
             return undefined;
@@ -313,7 +321,6 @@ export class BackendAuthClient<
         requestHeaders,
         isSignUpCookie,
         allowUserAuthRefresh,
-        serviceOrigin,
     }: {
         requestHeaders: IncomingHttpHeaders;
         isSignUpCookie: boolean;
@@ -323,8 +330,6 @@ export class BackendAuthClient<
          * with the frontend auth client's `checkUser.performCheck` callback.
          */
         allowUserAuthRefresh: boolean;
-        /** Overrides the client's already established `serviceOrigin`. */
-        serviceOrigin?: string | undefined;
     }): Promise<GetUserResult<DatabaseUser> | undefined> {
         const userIdResult = await extractUserIdFromRequestHeaders<UserId>(
             requestHeaders,
@@ -354,7 +359,7 @@ export class BackendAuthClient<
         const cookieRefreshHeaders =
             (await this.createCookieRefreshHeaders({
                 userIdResult,
-                serviceOrigin,
+                requestHeaders,
             })) || {};
 
         return {
@@ -408,7 +413,7 @@ export class BackendAuthClient<
                 ? (generateLogoutHeaders(
                       await this.getCookieParams({
                           isSignUpCookie: true,
-                          serviceOrigin: params.serviceOrigin,
+                          requestHeaders: undefined,
                       }),
                       this.config.overrides,
                   ) satisfies Record<CsrfHeaderName, string>)
@@ -418,7 +423,7 @@ export class BackendAuthClient<
                 ? (generateLogoutHeaders(
                       await this.getCookieParams({
                           isSignUpCookie: false,
-                          serviceOrigin: params.serviceOrigin,
+                          requestHeaders: undefined,
                       }),
                       this.config.overrides,
                   ) satisfies Record<CsrfHeaderName, string>)
@@ -448,13 +453,10 @@ export class BackendAuthClient<
         userId,
         requestHeaders,
         isSignUpCookie,
-        serviceOrigin,
     }: {
         userId: UserId;
         requestHeaders: IncomingHttpHeaders;
         isSignUpCookie: boolean;
-        /** Overrides the client's already established `serviceOrigin`. */
-        serviceOrigin?: string | undefined;
     }): Promise<OutgoingHttpHeaders> {
         const oppositeCookieName = isSignUpCookie ? AuthCookieName.Auth : AuthCookieName.SignUp;
         const hasExistingOppositeCookie = requestHeaders.cookie?.includes(`${oppositeCookieName}=`);
@@ -463,7 +465,7 @@ export class BackendAuthClient<
             ? generateLogoutHeaders(
                   await this.getCookieParams({
                       isSignUpCookie: !isSignUpCookie,
-                      serviceOrigin,
+                      requestHeaders,
                   }),
                   this.config.overrides,
               )
@@ -473,7 +475,7 @@ export class BackendAuthClient<
             userId,
             await this.getCookieParams({
                 isSignUpCookie,
-                serviceOrigin,
+                requestHeaders,
             }),
             this.config.overrides,
         );
@@ -536,7 +538,6 @@ export class BackendAuthClient<
     public async getInsecureUser({
         requestHeaders,
         allowUserAuthRefresh,
-        serviceOrigin,
     }: {
         requestHeaders: IncomingHttpHeaders;
         /**
@@ -545,8 +546,6 @@ export class BackendAuthClient<
          * with the frontend auth client's `checkUser.performCheck` callback.
          */
         allowUserAuthRefresh: boolean;
-        /** Overrides the client's already established `serviceOrigin`. */
-        serviceOrigin?: string | undefined;
     }): Promise<GetUserResult<DatabaseUser> | undefined> {
         // eslint-disable-next-line @typescript-eslint/no-deprecated
         const userIdResult = await insecureExtractUserIdFromCookieAlone<UserId>(
@@ -573,7 +572,7 @@ export class BackendAuthClient<
             allowUserAuthRefresh &&
             (await this.createCookieRefreshHeaders({
                 userIdResult,
-                serviceOrigin,
+                requestHeaders,
             }));
 
         return {
