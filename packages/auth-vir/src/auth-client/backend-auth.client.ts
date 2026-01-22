@@ -5,7 +5,13 @@ import {
     type MaybePromise,
     type PartialWithUndefined,
 } from '@augment-vir/common';
-import {calculateRelativeDate, getNowInUtcTimezone, isDateAfter, type AnyDuration} from 'date-vir';
+import {
+    calculateRelativeDate,
+    getNowInUtcTimezone,
+    isDateAfter,
+    negateDuration,
+    type AnyDuration,
+} from 'date-vir';
 import {type IncomingHttpHeaders, type OutgoingHttpHeaders} from 'node:http';
 import {type EmptyObject, type RequireExactlyOne, type RequireOneOrNone} from 'type-fest';
 import {
@@ -127,12 +133,11 @@ export type BackendAuthClientConfig<
          */
         userSessionIdleTimeout: Readonly<AnyDuration>;
         /**
-         * How long before a user's session times out when we should start trying to refresh their
-         * session.
+         * How long into a user's session when we should start trying to refresh their session.
          *
-         * @default {minutes: 10}
+         * @default {minutes: 2}
          */
-        sessionRefreshThreshold: Readonly<AnyDuration>;
+        sessionRefreshTimeout: Readonly<AnyDuration>;
         overrides: PartialWithUndefined<{
             csrfHeaderName: CsrfHeaderName;
             assumedUserHeaderName: string;
@@ -144,8 +149,8 @@ const defaultSessionIdleTimeout: Readonly<AnyDuration> = {
     minutes: 20,
 };
 
-const defaultSessionRefreshThreshold: Readonly<AnyDuration> = {
-    minutes: 10,
+const defaultSessionRefreshTimeout: Readonly<AnyDuration> = {
+    minutes: 2,
 };
 
 /**
@@ -261,12 +266,14 @@ export class BackendAuthClient<
          * - Y = JWT expiration within the refresh threshold: {@link isRefreshReady} = true.
          * - Z = JWT expiration outside the refresh threshold: {@link isRefreshReady} = false.
          */
+        const sessionRefreshTimeout =
+            this.config.sessionRefreshTimeout || defaultSessionRefreshTimeout;
         const isRefreshReady = isDateAfter({
-            fullDate: calculateRelativeDate(
-                now,
-                this.config.sessionRefreshThreshold || defaultSessionRefreshThreshold,
+            fullDate: now,
+            relativeTo: calculateRelativeDate(
+                userIdResult.jwtExpiration,
+                negateDuration(sessionRefreshTimeout),
             ),
-            relativeTo: userIdResult.jwtExpiration,
         });
 
         if (isRefreshReady) {
