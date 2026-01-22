@@ -9,7 +9,7 @@ import {
     PrismaDatabaseEngine,
 } from 'prisma-vir';
 import {type EmptyObject} from 'type-fest';
-import {testPrismaSchemaFilePath} from '../file-paths.mock.js';
+import {testPrismaMigrationsDirPath, testPrismaSchemaFilePath} from '../file-paths.mock.js';
 import {type Prisma, PrismaClient, type User} from '../generated/client.js';
 import {type UserId} from '../generated/models.js';
 import {AuthHeaderName} from '../headers.js';
@@ -47,6 +47,7 @@ async function setupBackendAuthClientTest<AssumedUserParams extends AnyObject = 
     >;
 }) {
     const {prismaClient} = await createPrismaClient(PrismaDatabaseEngine.Postgres, PrismaClient, {
+        migrationsDirPath: testPrismaMigrationsDirPath,
         schemaPath: testPrismaSchemaFilePath,
         connection: {
             dev: {

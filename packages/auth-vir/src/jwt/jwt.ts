@@ -8,7 +8,6 @@ import {
     type DateLike,
     type FullDate,
     getNowInUtcTimezone,
-    isDateAfter,
     toTimestamp,
     type UtcTimezone,
 } from 'date-vir';
@@ -82,6 +81,24 @@ export type CreateJwtParams = Readonly<{
     >;
 
 /**
+ * JWT uses seconds since the epoch per RFC 7519, whereas `toTimestamp` uses milliseconds.
+ *
+ * @category Internal
+ */
+export function toJwtTimestamp(date: Readonly<FullDate>) {
+    return Math.floor(toTimestamp(date) / 1000);
+}
+
+/**
+ * Converts a JWT timestamp (in seconds) into a FullDate instance.
+ *
+ * @category Internal
+ */
+export function parseJwtTimestamp(seconds: number): FullDate<UtcTimezone> {
+    return createUtcFullDate(seconds * 1000);
+}
+
+/**
  * Creates a signed and encrypted JWT that contains the given data.
  *
  * @category Internal
@@ -95,17 +112,17 @@ export async function createJwt<JwtData extends AnyObject = AnyObject>(
         .setProtectedHeader(signingProtectedHeader)
         .setIssuedAt(
             params.issuedAt
-                ? toTimestamp(createFullDateInUserTimezone(params.issuedAt))
+                ? toJwtTimestamp(createFullDateInUserTimezone(params.issuedAt))
                 : undefined,
         )
         .setIssuer(params.issuer)
         .setAudience(params.audience)
         .setExpirationTime(
-            toTimestamp(calculateRelativeDate(getNowInUtcTimezone(), params.jwtDuration)),
+            toJwtTimestamp(calculateRelativeDate(getNowInUtcTimezone(), params.jwtDuration)),
         );
 
     if (params.notValidUntil) {
-        rawJwt.setNotBefore(toTimestamp(createFullDateInUserTimezone(params.notValidUntil)));
+        rawJwt.setNotBefore(toJwtTimestamp(createFullDateInUserTimezone(params.notValidUntil)));
     }
 
     const signedJwt = await rawJwt.sign(params.jwtKeys.signingKey);
@@ -170,17 +187,12 @@ export async function parseJwt<JwtData extends AnyObject = AnyObject>(
         throw new Error('Invalid signing protected header.');
     }
 
-    const expirationMs = assertWrap.isDefined(verifiedJwt.payload.exp, 'JWT has no expiration.');
-    const jwtExpiration: FullDate<UtcTimezone> = createUtcFullDate(expirationMs);
+    const expirationSeconds = assertWrap.isDefined(
+        verifiedJwt.payload.exp,
+        'JWT has no expiration.',
+    );
 
-    if (
-        isDateAfter({
-            fullDate: getNowInUtcTimezone(),
-            relativeTo: jwtExpiration,
-        })
-    ) {
-        throw new Error('JWT expired.');
-    }
+    const jwtExpiration: FullDate<UtcTimezone> = parseJwtTimestamp(expirationSeconds);
 
     return {
         data: data as JwtData,

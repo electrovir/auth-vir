@@ -211,7 +211,7 @@ describe(parseJwt.name, () => {
                     jwtKeys,
                 }),
             {
-                matchMessage: 'JWT expired',
+                matchMessage: '"exp" claim timestamp check failed',
             },
         );
     });
