@@ -91,21 +91,28 @@ export async function createJwt<JwtData extends AnyObject = AnyObject>(
     data: JwtData,
     params: Readonly<CreateJwtParams>,
 ): Promise<string> {
+    /** JWT claims use Unix timestamps in seconds per RFC 7519, but date-vir uses milliseconds. */
+    const toJwtTimestamp = (ms: number) => Math.floor(ms / 1000);
+
     const rawJwt = new SignJWT({data})
         .setProtectedHeader(signingProtectedHeader)
         .setIssuedAt(
             params.issuedAt
-                ? toTimestamp(createFullDateInUserTimezone(params.issuedAt))
+                ? toJwtTimestamp(toTimestamp(createFullDateInUserTimezone(params.issuedAt)))
                 : undefined,
         )
         .setIssuer(params.issuer)
         .setAudience(params.audience)
         .setExpirationTime(
-            toTimestamp(calculateRelativeDate(getNowInUtcTimezone(), params.jwtDuration)),
+            toJwtTimestamp(
+                toTimestamp(calculateRelativeDate(getNowInUtcTimezone(), params.jwtDuration)),
+            ),
         );
 
     if (params.notValidUntil) {
-        rawJwt.setNotBefore(toTimestamp(createFullDateInUserTimezone(params.notValidUntil)));
+        rawJwt.setNotBefore(
+            toJwtTimestamp(toTimestamp(createFullDateInUserTimezone(params.notValidUntil))),
+        );
     }
 
     const signedJwt = await rawJwt.sign(params.jwtKeys.signingKey);
@@ -170,8 +177,9 @@ export async function parseJwt<JwtData extends AnyObject = AnyObject>(
         throw new Error('Invalid signing protected header.');
     }
 
-    const expirationMs = assertWrap.isDefined(verifiedJwt.payload.exp, 'JWT has no expiration.');
-    const jwtExpiration: FullDate<UtcTimezone> = createUtcFullDate(expirationMs);
+    const expirationSeconds = assertWrap.isDefined(verifiedJwt.payload.exp, 'JWT has no expiration.');
+    /** JWT `exp` claim is in seconds per RFC 7519, but `createUtcFullDate` expects milliseconds. */
+    const jwtExpiration: FullDate<UtcTimezone> = createUtcFullDate(expirationSeconds * 1000);
 
     if (
         isDateAfter({

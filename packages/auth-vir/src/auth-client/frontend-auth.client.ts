@@ -81,10 +81,11 @@ export type FrontendAuthClientConfig = PartialWithUndefined<{
  */
 export class FrontendAuthClient<AssumedUserParams extends JsonCompatibleObject = EmptyObject> {
     protected userCheckInterval: undefined | ReturnType<typeof createBlockingInterval>;
+    protected removeActivityListener: (() => void) | undefined;
 
     constructor(protected readonly config: FrontendAuthClientConfig = {}) {
         if (config.checkUser) {
-            listenToActivity({
+            this.removeActivityListener = listenToActivity({
                 listener: async () => {
                     const response = await config.checkUser?.performCheck();
 
@@ -106,6 +107,7 @@ export class FrontendAuthClient<AssumedUserParams extends JsonCompatibleObject =
      */
     public destroy() {
         this.userCheckInterval?.clearInterval();
+        this.removeActivityListener?.();
     }
 
     /** Wraps {@link getCurrentCsrfToken} to automatically handle wiping an invalid CSRF token. */
