@@ -7,6 +7,7 @@ import {
 } from '@augment-vir/common';
 import {
     calculateRelativeDate,
+    createUtcFullDate,
     getNowInUtcTimezone,
     isDateAfter,
     negateDuration,
@@ -138,6 +139,13 @@ export type BackendAuthClientConfig<
          * @default {minutes: 2}
          */
         sessionRefreshTimeout: Readonly<AnyDuration>;
+        /**
+         * The maximum duration a session can last, regardless of activity. After this time, the
+         * user will be logged out even if they are actively using the application.
+         *
+         * @default {weeks: 2}
+         */
+        maxSessionDuration: Readonly<AnyDuration>;
         overrides: PartialWithUndefined<{
             csrfHeaderName: CsrfHeaderName;
             assumedUserHeaderName: string;
@@ -151,6 +159,10 @@ const defaultSessionIdleTimeout: Readonly<AnyDuration> = {
 
 const defaultSessionRefreshTimeout: Readonly<AnyDuration> = {
     minutes: 2,
+};
+
+const defaultMaxSessionDuration: Readonly<AnyDuration> = {
+    weeks: 2,
 };
 
 /**
@@ -249,6 +261,24 @@ export class BackendAuthClient<
 
         if (isExpiredAlready) {
             return undefined;
+        }
+
+        /**
+         * Check if the session has exceeded the max session duration. If so, don't refresh the
+         * session and let it expire naturally.
+         */
+        const maxSessionDuration = this.config.maxSessionDuration || defaultMaxSessionDuration;
+        if (userIdResult.sessionStartedAt) {
+            const sessionStartDate = createUtcFullDate(userIdResult.sessionStartedAt);
+            const maxSessionEndDate = calculateRelativeDate(sessionStartDate, maxSessionDuration);
+            const isSessionExpired = isDateAfter({
+                fullDate: now,
+                relativeTo: maxSessionEndDate,
+            });
+
+            if (isSessionExpired) {
+                return undefined;
+            }
         }
 
         /**
@@ -478,6 +508,14 @@ export class BackendAuthClient<
               )
             : undefined;
 
+        const existingUserIdResult = await extractUserIdFromRequestHeaders<UserId>(
+            requestHeaders,
+            await this.getJwtParams(),
+            isSignUpCookie ? AuthCookieName.SignUp : AuthCookieName.Auth,
+            this.config.overrides,
+        );
+        const sessionStartedAt = existingUserIdResult?.sessionStartedAt;
+
         const newCookieHeaders = await generateSuccessfulLoginHeaders(
             userId,
             await this.getCookieParams({
@@ -485,6 +523,7 @@ export class BackendAuthClient<
                 requestHeaders,
             }),
             this.config.overrides,
+            sessionStartedAt,
         );
 
         return {

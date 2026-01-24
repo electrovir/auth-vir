@@ -16,6 +16,7 @@ import {
 } from './csrf-token.js';
 import {AuthHeaderName} from './headers.js';
 import {type ParseJwtParams} from './jwt/jwt.js';
+import {type JwtUserData} from './jwt/user-jwt.js';
 
 /**
  * All possible headers container types supported by {@link extractUserIdFromRequestHeaders}.
@@ -49,6 +50,11 @@ export type UserIdResult<UserId extends string | number> = {
     userId: UserId;
     jwtExpiration: FullDate<UtcTimezone>;
     cookieName: string;
+    /**
+     * Unix timestamp (in milliseconds) when the session was originally started. Used to enforce max
+     * session duration.
+     */
+    sessionStartedAt: JwtUserData['sessionStartedAt'];
 };
 
 function readCsrfTokenHeader(
@@ -100,6 +106,7 @@ export async function extractUserIdFromRequestHeaders<UserId extends string | nu
             userId: jwt.data.userId as UserId,
             jwtExpiration: jwt.jwtExpiration,
             cookieName,
+            sessionStartedAt: jwt.data.sessionStartedAt,
         };
     } catch {
         return undefined;
@@ -136,6 +143,7 @@ export async function insecureExtractUserIdFromCookieAlone<UserId extends string
             userId: jwt.data.userId as UserId,
             jwtExpiration: jwt.jwtExpiration,
             cookieName,
+            sessionStartedAt: jwt.data.sessionStartedAt,
         };
     } catch {
         return undefined;
@@ -156,6 +164,11 @@ export async function generateSuccessfulLoginHeaders<
     overrides: PartialWithUndefined<{
         csrfHeaderName: CsrfHeaderName;
     }> = {},
+    /**
+     * The timestamp (in seconds) when the session originally started. If not provided, the current
+     * time will be used (for new sessions).
+     */
+    sessionStartedAt?: number | undefined,
 ): Promise<
     {
         'set-cookie': string;
@@ -169,6 +182,7 @@ export async function generateSuccessfulLoginHeaders<
             {
                 csrfToken: csrfToken.token,
                 userId,
+                sessionStartedAt: sessionStartedAt ?? Date.now(),
             },
             cookieConfig,
         ),

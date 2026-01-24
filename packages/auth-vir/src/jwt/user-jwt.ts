@@ -1,4 +1,4 @@
-import {checkValidShape, defineShape, unionShape} from 'object-shape-tester';
+import {checkValidShape, defineShape, optionalShape, unionShape} from 'object-shape-tester';
 import {type generateCsrfToken} from '../csrf-token.js';
 import {
     createJwt,
@@ -22,6 +22,12 @@ export const userJwtDataShape = defineShape({
      * Consider using {@link generateCsrfToken} to generate this.
      */
     csrfToken: '',
+    /**
+     * Unix timestamp (in milliseconds) when the session was originally started. This is used to
+     * enforce the max session duration. If not present, the session is considered to have started
+     * when the JWT was issued.
+     */
+    sessionStartedAt: optionalShape(0, {alsoUndefined: true}),
 });
 
 /**
