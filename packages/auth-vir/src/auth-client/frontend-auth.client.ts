@@ -17,6 +17,7 @@ import {
     wipeCurrentCsrfToken,
 } from '../csrf-token.js';
 import {AuthHeaderName} from '../headers.js';
+import {authLog} from '../log.js';
 
 /**
  * Config for {@link FrontendAuthClient}.
@@ -119,6 +120,9 @@ export class FrontendAuthClient<AssumedUserParams extends JsonCompatibleObject =
             csrfTokenResult.failure &&
             csrfTokenResult.failure !== CsrfTokenFailureReason.DoesNotExist
         ) {
+            authLog('auth-vir: LOGOUT - getCurrentCsrfToken: invalid CSRF token', {
+                failure: csrfTokenResult.failure,
+            });
             await this.logout();
             return undefined;
         } else {
@@ -200,6 +204,7 @@ export class FrontendAuthClient<AssumedUserParams extends JsonCompatibleObject =
 
     /** Wipes the current user auth. */
     public async logout() {
+        authLog('auth-vir: LOGOUT - FrontendAuthClient.logout called', new Error().stack);
         await this.config.authClearedCallback?.();
         wipeCurrentCsrfToken(this.config.overrides);
     }
@@ -222,6 +227,7 @@ export class FrontendAuthClient<AssumedUserParams extends JsonCompatibleObject =
         >,
     ): Promise<void> {
         if (!response.ok) {
+            authLog('auth-vir: LOGOUT - handleLoginResponse: response not ok');
             await this.logout();
             throw new Error('Login response failed.');
         }
@@ -229,6 +235,7 @@ export class FrontendAuthClient<AssumedUserParams extends JsonCompatibleObject =
         const {csrfToken} = extractCsrfTokenHeader(response, this.config.overrides);
 
         if (!csrfToken) {
+            authLog('auth-vir: LOGOUT - handleLoginResponse: no CSRF token in response');
             await this.logout();
             throw new Error('Did not receive any CSRF token.');
         }
@@ -259,6 +266,9 @@ export class FrontendAuthClient<AssumedUserParams extends JsonCompatibleObject =
             response.status === HttpStatus.Unauthorized &&
             !response.headers?.get(AuthHeaderName.IsSignUpAuth)
         ) {
+            authLog('auth-vir: LOGOUT - verifyResponseAuth: unauthorized response (401)', {
+                status: response.status,
+            });
             await this.logout();
             return false;
         }

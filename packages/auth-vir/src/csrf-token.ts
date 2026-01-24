@@ -14,6 +14,7 @@ import {
 import {defineShape, parseJsonWithShape} from 'object-shape-tester';
 import {type RequireExactlyOne} from 'type-fest';
 import {AuthHeaderName} from './headers.js';
+import {authLog} from './log.js';
 
 /**
  * Shape definition for {@link CsrfToken}.
@@ -137,6 +138,7 @@ export function parseCsrfToken(value: string | undefined | null): Readonly<GetCs
     );
 
     if (!csrfToken) {
+        authLog('auth-vir: CSRF token parse failed - will cause logout if used');
         return {
             failure: CsrfTokenFailureReason.ParseFailed,
         };
@@ -148,6 +150,9 @@ export function parseCsrfToken(value: string | undefined | null): Readonly<GetCs
             relativeTo: csrfToken.expiration,
         })
     ) {
+        authLog('auth-vir: CSRF token expired - will cause logout', {
+            expiration: csrfToken.expiration,
+        });
         return {
             failure: CsrfTokenFailureReason.Expired,
         };
@@ -202,6 +207,7 @@ export function wipeCurrentCsrfToken(
         csrfHeaderName: string;
     }> = {},
 ) {
+    authLog('auth-vir: wipeCurrentCsrfToken called', new Error().stack);
     return (overrides.localStorage || globalThis.localStorage).removeItem(
         overrides.csrfHeaderName || AuthHeaderName.CsrfToken,
     );

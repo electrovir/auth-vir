@@ -26,6 +26,7 @@ import {AuthCookieName, type CookieParams} from '../cookie.js';
 import {AuthHeaderName, mergeHeaderValues} from '../headers.js';
 import {generateNewJwtKeys, parseJwtKeys, type JwtKeys, type RawJwtKeys} from '../jwt/jwt-keys.js';
 import {type CreateJwtParams} from '../jwt/jwt.js';
+import {authLog} from '../log.js';
 
 /**
  * Output from `BackendAuthClient.getSecureUser()`.
@@ -260,6 +261,10 @@ export class BackendAuthClient<
         });
 
         if (isExpiredAlready) {
+            authLog('auth-vir: SESSION EXPIRED - JWT already expired, user will be logged out', {
+                userId: userIdResult.userId,
+                jwtExpiration: userIdResult.jwtExpiration,
+            });
             return undefined;
         }
 
@@ -277,6 +282,14 @@ export class BackendAuthClient<
             });
 
             if (isSessionExpired) {
+                authLog(
+                    'auth-vir: SESSION EXPIRED - max session duration exceeded, user will be logged out',
+                    {
+                        userId: userIdResult.userId,
+                        sessionStartedAt: userIdResult.sessionStartedAt,
+                        maxSessionDuration,
+                    },
+                );
                 return undefined;
             }
         }
@@ -375,6 +388,7 @@ export class BackendAuthClient<
             this.config.overrides,
         );
         if (!userIdResult) {
+            authLog('auth-vir: getSecureUser failed - could not extract user from request');
             return undefined;
         }
 
@@ -385,6 +399,9 @@ export class BackendAuthClient<
         });
 
         if (!user) {
+            authLog('auth-vir: getSecureUser failed - user not found in database', {
+                userId: userIdResult.userId,
+            });
             return undefined;
         }
 
@@ -445,6 +462,14 @@ export class BackendAuthClient<
             'set-cookie': string[];
         }
     > {
+        authLog(
+            'auth-vir: LOGOUT - BackendAuthClient.createLogoutHeaders called',
+            {
+                allCookies: 'allCookies' in params ? params.allCookies : undefined,
+                isSignUpCookie: 'isSignUpCookie' in params ? params.isSignUpCookie : undefined,
+            },
+            new Error().stack,
+        );
         const signUpCookieHeaders =
             params.allCookies || params.isSignUpCookie
                 ? (generateLogoutHeaders(
@@ -601,6 +626,7 @@ export class BackendAuthClient<
         );
 
         if (!userIdResult) {
+            authLog('auth-vir: getInsecureUser failed - could not extract user from request');
             return undefined;
         }
 
@@ -611,6 +637,9 @@ export class BackendAuthClient<
         });
 
         if (!user) {
+            authLog('auth-vir: getInsecureUser failed - user not found in database', {
+                userId: userIdResult.userId,
+            });
             return undefined;
         }
 
