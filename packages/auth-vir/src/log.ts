@@ -10,9 +10,13 @@ export function authLog(...params: any[]) {
     console.info(...params);
 }
 
+let shouldLogAuth = true;
+
 /**
  * Set to `false` to disable logging.
  *
  * @category Internal
  */
-export let shouldLogAuth = true;
+export function setShouldLogAuth(value: boolean) {
+    shouldLogAuth = value;
+}
