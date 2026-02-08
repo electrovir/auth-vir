@@ -5,6 +5,7 @@ import {
     extractErrorMessage,
     HttpStatus,
     mergeDeep,
+    stringify,
 } from '@augment-vir/common';
 import {generateApi, mapServiceDevPort} from '@rest-vir/define-service';
 import {
@@ -194,7 +195,7 @@ export const DemoApp = defineElement()({
                 } else {
                     const errorMessage = [
                         status === LoginStatus.LoggingIn ? 'Login failed' : 'Sign up failed',
-                        response.data,
+                        stringify(response.data),
                     ]
                         .filter(check.isTruthy)
                         .join(': ');

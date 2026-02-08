@@ -70,7 +70,13 @@ function readCsrfTokenHeader(
         return undefined;
     }
 
-    return parseCsrfToken(rawCsrfToken).csrfToken?.token || rawCsrfToken;
+    const token = parseCsrfToken(rawCsrfToken).csrfToken?.token || rawCsrfToken;
+
+    if (!token) {
+        authLog('auth-vir: CSRF token not found.');
+    }
+
+    return token;
 }
 
 /**
@@ -108,14 +114,16 @@ export async function extractUserIdFromRequestHeaders<UserId extends string | nu
         const jwt = await extractCookieJwt(cookie, jwtParams, cookieName);
 
         if (!jwt || jwt.data.csrfToken !== csrfToken) {
-            authLog(
-                'auth-vir: extractUserIdFromRequestHeaders failed - JWT invalid or CSRF mismatch',
-                {
-                    hasJwt: !!jwt,
-                    csrfMatch: jwt ? jwt.data.csrfToken === csrfToken : false,
-                    cookieName,
-                },
-            );
+            if (cookieName === AuthCookieName.Auth) {
+                authLog(
+                    'auth-vir: extractUserIdFromRequestHeaders failed - JWT invalid or CSRF mismatch',
+                    {
+                        hasJwt: !!jwt,
+                        csrfMatch: jwt ? jwt.data.csrfToken === csrfToken : false,
+                        cookieName,
+                    },
+                );
+            }
             return undefined;
         }
 

@@ -1,6 +1,6 @@
 {
     "name": "@evir/auth-vir-mono-root",
-    "version": "2.7.1",
+    "version": "2.7.2",
     "private": true,
     "homepage": "https://github.com/electrovir/auth-vir",
     "bugs": {
@@ -46,7 +46,7 @@
         "esbuild": "^0.27.3",
         "eslint": "^9.39.2",
         "eslint-config-prettier": "^10.1.8",
-        "eslint-plugin-jsdoc": "^62.0.0",
+        "eslint-plugin-jsdoc": "^62.5.0",
         "eslint-plugin-monorepo-cop": "^1.0.2",
         "eslint-plugin-playwright": "^2.5.1",
         "eslint-plugin-prettier": "^5.5.5",

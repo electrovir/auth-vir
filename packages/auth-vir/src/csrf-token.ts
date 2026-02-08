@@ -138,7 +138,6 @@ export function parseCsrfToken(value: string | undefined | null): Readonly<GetCs
     );
 
     if (!csrfToken) {
-        authLog('auth-vir: CSRF token parse failed - will cause logout if used');
         return {
             failure: CsrfTokenFailureReason.ParseFailed,
         };
@@ -150,9 +149,6 @@ export function parseCsrfToken(value: string | undefined | null): Readonly<GetCs
             relativeTo: csrfToken.expiration,
         })
     ) {
-        authLog('auth-vir: CSRF token expired - will cause logout', {
-            expiration: csrfToken.expiration,
-        });
         return {
             failure: CsrfTokenFailureReason.Expired,
         };

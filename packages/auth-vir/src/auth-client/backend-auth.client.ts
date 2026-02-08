@@ -388,7 +388,9 @@ export class BackendAuthClient<
             this.config.overrides,
         );
         if (!userIdResult) {
-            authLog('auth-vir: getSecureUser failed - could not extract user from request');
+            if (!isSignUpCookie) {
+                authLog('auth-vir: getSecureUser failed - could not extract user from request');
+            }
             return undefined;
         }
 
