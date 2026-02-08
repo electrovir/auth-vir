@@ -42,8 +42,8 @@
         "test:web": "virmator test web"
     },
     "dependencies": {
-        "@augment-vir/assert": "^31.59.0",
-        "@augment-vir/common": "^31.59.0",
+        "@augment-vir/assert": "^31.59.2",
+        "@augment-vir/common": "^31.59.2",
         "date-vir": "^8.1.0",
         "detect-activity": "^0.0.1",
         "hash-wasm": "^4.12.0",
@@ -53,8 +53,8 @@
         "url-vir": "^2.1.7"
     },
     "devDependencies": {
-        "@augment-vir/test": "^31.59.0",
-        "@prisma/client": "^6.18.0",
+        "@augment-vir/test": "^31.59.2",
+        "@prisma/client": "^7.3.0",
         "@types/node": "^24.9.1",
         "@web/dev-server-esbuild": "^1.0.4",
         "@web/test-runner": "^0.20.2",

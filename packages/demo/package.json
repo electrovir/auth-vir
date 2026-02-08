@@ -10,14 +10,14 @@
         "test": "exit 0"
     },
     "dependencies": {
-        "@augment-vir/assert": "^31.59.0",
-        "@augment-vir/common": "^31.59.0",
-        "@rest-vir/define-service": "^1.4.0",
-        "@rest-vir/implement-service": "^1.4.0",
-        "@rest-vir/run-service": "^1.4.0",
+        "@augment-vir/assert": "^31.59.2",
+        "@augment-vir/common": "^31.59.2",
+        "@rest-vir/define-service": "^1.5.0",
+        "@rest-vir/implement-service": "^1.5.0",
+        "@rest-vir/run-service": "^1.5.0",
         "auth-vir": "^2.7.1",
         "element-vir": "^26.14.3",
-        "vira": "^29.1.0"
+        "vira": "^29.3.0"
     },
     "devDependencies": {
         "runstorm": "^1.0.0",
