@@ -54,7 +54,7 @@
     },
     "devDependencies": {
         "@augment-vir/test": "^31.59.2",
-        "@prisma/client": "^7.3.0",
+        "@prisma/client": "^6.19.2",
         "@types/node": "^24.9.1",
         "@web/dev-server-esbuild": "^1.0.4",
         "@web/test-runner": "^0.20.2",

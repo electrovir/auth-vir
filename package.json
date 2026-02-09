@@ -64,10 +64,11 @@
         "prettier-plugin-packagejson": "^3.0.0",
         "prettier-plugin-sort-json": "^4.2.0",
         "prettier-plugin-toml": "^2.0.6",
+        "prisma": "^6.19.2",
         "prisma-vir": "^2.3.3",
         "runstorm": "^1.0.0",
         "typescript-eslint": "^8.54.0",
-        "virmator": "^14.5.0"
+        "virmator": "^14.5.1"
     },
     "engines": {
         "node": ">=22"
