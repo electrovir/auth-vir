@@ -3,6 +3,7 @@ import {type AnyObject, type PartialWithUndefined} from '@augment-vir/common';
 import {
     type AnyDuration,
     calculateRelativeDate,
+    convertDuration,
     createFullDateInUserTimezone,
     createUtcFullDate,
     type DateLike,
@@ -12,6 +13,7 @@ import {
     type UtcTimezone,
 } from 'date-vir';
 import {EncryptJWT, jwtDecrypt, jwtVerify, SignJWT} from 'jose';
+import {defaultAllowedClockSkew} from '../csrf-token.js';
 import {type JwtKeys} from './jwt-keys.js';
 
 const encryptionProtectedHeader = {alg: 'dir', enc: 'A256GCM'};
@@ -137,7 +139,16 @@ export async function createJwt<JwtData extends AnyObject = AnyObject>(
  *
  * @category Internal
  */
-export type ParseJwtParams = Readonly<Pick<CreateJwtParams, 'issuer' | 'audience' | 'jwtKeys'>>;
+export type ParseJwtParams = Readonly<Pick<CreateJwtParams, 'issuer' | 'audience' | 'jwtKeys'>> &
+    PartialWithUndefined<{
+        /**
+         * Allowed clock skew tolerance for JWT expiration and timestamp checks. Accounts for
+         * differences between server and client clocks.
+         *
+         * @default {minutes: 5}
+         */
+        allowedClockSkew: Readonly<AnyDuration>;
+    }>;
 
 /**
  * A fully parsed JWT with embedded data.
@@ -167,6 +178,11 @@ export async function parseJwt<JwtData extends AnyObject = AnyObject>(
         throw new TypeError('Decrypted jwt is not a string.');
     }
 
+    const clockToleranceSeconds = convertDuration(
+        params.allowedClockSkew || defaultAllowedClockSkew,
+        {seconds: true},
+    ).seconds;
+
     const verifiedJwt = await jwtVerify(decryptedJwt.payload.jwt, params.jwtKeys.signingKey, {
         issuer: params.issuer,
         audience: params.audience,
@@ -175,9 +191,13 @@ export async function parseJwt<JwtData extends AnyObject = AnyObject>(
             'aud',
             'iss',
         ],
+        clockTolerance: clockToleranceSeconds,
     });
 
-    if (!verifiedJwt.payload.iat || verifiedJwt.payload.iat * 1000 > Date.now()) {
+    if (
+        !verifiedJwt.payload.iat ||
+        verifiedJwt.payload.iat * 1000 > Date.now() + clockToleranceSeconds * 1000
+    ) {
         throw new Error('"iat" claim timestamp check failed');
     }
 

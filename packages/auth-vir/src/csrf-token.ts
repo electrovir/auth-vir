@@ -33,6 +33,15 @@ export const csrfTokenShape = defineShape({
 export type CsrfToken = typeof csrfTokenShape.runtimeType;
 
 /**
+ * Default allowed clock skew for CSRF token expiration checks. Accounts for differences between
+ * server and client clocks when checking token expiration.
+ *
+ * @category Internal
+ * @default {minutes: 5}
+ */
+export const defaultAllowedClockSkew: Readonly<AnyDuration> = {minutes: 5};
+
+/**
  * Generates a random, cryptographically secure CSRF token.
  *
  * @category Internal
@@ -110,12 +119,20 @@ export type GetCsrfTokenResult = RequireExactlyOne<{
 export function extractCsrfTokenHeader(
     response: Readonly<PartialWithUndefined<SelectFrom<Response, {headers: true}>>>,
     csrfHeaderNameOption: Readonly<CsrfHeaderNameOption>,
+    options?: PartialWithUndefined<{
+        /**
+         * Allowed clock skew tolerance for CSRF token expiration checks.
+         *
+         * @default {minutes: 5}
+         */
+        allowedClockSkew: Readonly<AnyDuration>;
+    }>,
 ): Readonly<GetCsrfTokenResult> {
     const csrfTokenHeaderName = resolveCsrfHeaderName(csrfHeaderNameOption);
 
     const rawCsrfToken = response.headers?.get(csrfTokenHeaderName);
 
-    return parseCsrfToken(rawCsrfToken);
+    return parseCsrfToken(rawCsrfToken, options);
 }
 
 /**
@@ -146,7 +163,18 @@ export function storeCsrfToken(
  *
  * @category Internal
  */
-export function parseCsrfToken(value: string | undefined | null): Readonly<GetCsrfTokenResult> {
+export function parseCsrfToken(
+    value: string | undefined | null,
+    options?: PartialWithUndefined<{
+        /**
+         * Allowed clock skew tolerance for CSRF token expiration checks. Accounts for differences
+         * between server and client clocks.
+         *
+         * @default {minutes: 5}
+         */
+        allowedClockSkew: Readonly<AnyDuration>;
+    }>,
+): Readonly<GetCsrfTokenResult> {
     if (!value) {
         return {
             failure: CsrfTokenFailureReason.DoesNotExist,
@@ -170,10 +198,15 @@ export function parseCsrfToken(value: string | undefined | null): Readonly<GetCs
         };
     }
 
+    const effectiveExpiration = calculateRelativeDate(
+        csrfToken.expiration,
+        options?.allowedClockSkew || defaultAllowedClockSkew,
+    );
+
     if (
         isDateAfter({
             fullDate: getNowInUtcTimezone(),
-            relativeTo: csrfToken.expiration,
+            relativeTo: effectiveExpiration,
         })
     ) {
         return {
@@ -201,13 +234,19 @@ export function getCurrentCsrfToken(
              * @default globalThis.localStorage
              */
             localStorage: Pick<Storage, 'getItem'>;
+            /**
+             * Allowed clock skew tolerance for CSRF token expiration checks.
+             *
+             * @default {minutes: 5}
+             */
+            allowedClockSkew: Readonly<AnyDuration>;
         }>,
 ): Readonly<GetCsrfTokenResult> {
     const rawCsrfToken: string | undefined =
         (options.localStorage || globalThis.localStorage).getItem(resolveCsrfHeaderName(options)) ||
         undefined;
 
-    return parseCsrfToken(rawCsrfToken);
+    return parseCsrfToken(rawCsrfToken, options);
 }
 
 /**

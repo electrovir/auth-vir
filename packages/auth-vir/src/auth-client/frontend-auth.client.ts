@@ -12,6 +12,7 @@ import {type EmptyObject} from 'type-fest';
 import {
     type CsrfHeaderNameOption,
     CsrfTokenFailureReason,
+    defaultAllowedClockSkew,
     extractCsrfTokenHeader,
     getCurrentCsrfToken,
     resolveCsrfHeaderName,
@@ -75,6 +76,13 @@ export type FrontendAuthClientConfig = Readonly<{
          * another user.
          */
         assumedUserHeaderName: string;
+        /**
+         * Allowed clock skew tolerance for CSRF token expiration checks. Accounts for differences
+         * between server and client clocks.
+         *
+         * @default {minutes: 5}
+         */
+        allowedClockSkew: Readonly<AnyDuration>;
 
         overrides: PartialWithUndefined<{
             localStorage: Pick<Storage, 'setItem' | 'removeItem' | 'getItem'>;
@@ -121,21 +129,27 @@ export class FrontendAuthClient<AssumedUserParams extends JsonCompatibleObject =
     }
 
     /** Wraps {@link getCurrentCsrfToken} to automatically handle wiping an invalid CSRF token. */
-    public async getCurrentCsrfToken(): Promise<string | undefined> {
-        const csrfTokenResult = getCurrentCsrfToken(this.config.csrf);
+    public getCurrentCsrfToken(): string | undefined {
+        const csrfTokenResult = getCurrentCsrfToken({
+            ...this.config.csrf,
+            localStorage: this.config.overrides?.localStorage,
+            allowedClockSkew: this.config.allowedClockSkew || defaultAllowedClockSkew,
+        });
 
-        if (
-            csrfTokenResult.failure &&
-            csrfTokenResult.failure !== CsrfTokenFailureReason.DoesNotExist
-        ) {
-            authLog('auth-vir: LOGOUT - getCurrentCsrfToken: invalid CSRF token', {
-                failure: csrfTokenResult.failure,
-            });
-            await this.logout();
+        if (csrfTokenResult.failure) {
+            if (csrfTokenResult.failure !== CsrfTokenFailureReason.DoesNotExist) {
+                authLog('auth-vir: getCurrentCsrfToken: wiping invalid CSRF token', {
+                    failure: csrfTokenResult.failure,
+                });
+                wipeCurrentCsrfToken({
+                    ...this.config.csrf,
+                    localStorage: this.config.overrides?.localStorage,
+                });
+            }
             return undefined;
-        } else {
-            return csrfTokenResult.csrfToken?.token;
         }
+
+        return csrfTokenResult.csrfToken.token;
     }
 
     /**
@@ -185,8 +199,8 @@ export class FrontendAuthClient<AssumedUserParams extends JsonCompatibleObject =
      * `@augment-vir/common`](https://electrovir.github.io/augment-vir/functions/mergeDeep.html) to
      * combine them with these.
      */
-    public async createAuthenticatedRequestInit(): Promise<RequestInit> {
-        const csrfToken = await this.getCurrentCsrfToken();
+    public createAuthenticatedRequestInit(): RequestInit {
+        const csrfToken = this.getCurrentCsrfToken();
 
         const assumedUser = this.getAssumedUser();
         const headers: HeadersInit = {
@@ -213,7 +227,10 @@ export class FrontendAuthClient<AssumedUserParams extends JsonCompatibleObject =
     public async logout() {
         authLog('auth-vir: LOGOUT - FrontendAuthClient.logout called', new Error().stack);
         await this.config.authClearedCallback?.();
-        wipeCurrentCsrfToken(this.config.csrf);
+        wipeCurrentCsrfToken({
+            ...this.config.csrf,
+            localStorage: this.config.overrides?.localStorage,
+        });
     }
 
     /**
@@ -239,7 +256,9 @@ export class FrontendAuthClient<AssumedUserParams extends JsonCompatibleObject =
             throw new Error('Login response failed.');
         }
 
-        const {csrfToken} = extractCsrfTokenHeader(response, this.config.csrf);
+        const {csrfToken} = extractCsrfTokenHeader(response, this.config.csrf, {
+            allowedClockSkew: this.config.allowedClockSkew || defaultAllowedClockSkew,
+        });
 
         if (!csrfToken) {
             authLog('auth-vir: LOGOUT - handleLoginResponse: no CSRF token in response');
@@ -247,7 +266,10 @@ export class FrontendAuthClient<AssumedUserParams extends JsonCompatibleObject =
             throw new Error('Did not receive any CSRF token.');
         }
 
-        storeCsrfToken(csrfToken, this.config.csrf);
+        storeCsrfToken(csrfToken, {
+            ...this.config.csrf,
+            localStorage: this.config.overrides?.localStorage,
+        });
     }
 
     /**
@@ -281,9 +303,14 @@ export class FrontendAuthClient<AssumedUserParams extends JsonCompatibleObject =
         }
 
         /** If the response has a new CSRF token, store it. */
-        const {csrfToken} = extractCsrfTokenHeader(response, this.config.csrf);
+        const {csrfToken} = extractCsrfTokenHeader(response, this.config.csrf, {
+            allowedClockSkew: this.config.allowedClockSkew || defaultAllowedClockSkew,
+        });
         if (csrfToken) {
-            storeCsrfToken(csrfToken, this.config.csrf);
+            storeCsrfToken(csrfToken, {
+                ...this.config.csrf,
+                localStorage: this.config.overrides?.localStorage,
+            });
         }
 
         return true;

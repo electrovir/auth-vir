@@ -90,7 +90,7 @@ describe(FrontendAuthClient.name, () => {
         const {frontendAuthClient, mockLocalStorage} = createMockFrontendAuthClient();
 
         assert.deepEquals(
-            await frontendAuthClient.createAuthenticatedRequestInit(),
+            frontendAuthClient.createAuthenticatedRequestInit(),
             {
                 headers: {},
                 credentials: 'include',
@@ -126,7 +126,7 @@ describe(FrontendAuthClient.name, () => {
         await frontendAuthClient.handleLoginResponse(loginResponse);
 
         assert.deepEquals(
-            await frontendAuthClient.createAuthenticatedRequestInit(),
+            frontendAuthClient.createAuthenticatedRequestInit(),
             {
                 headers: {
                     [testCsrfHeaderName]: csrfToken.token,
@@ -192,7 +192,7 @@ describe(FrontendAuthClient.name, () => {
         );
         assert.strictEquals(callCounts.authCleared, 1);
 
-        assert.isUndefined(await frontendAuthClient.getCurrentCsrfToken());
+        assert.isUndefined(frontendAuthClient.getCurrentCsrfToken());
     });
 
     it('is constructable with only csrf header name option', () => {
@@ -247,7 +247,7 @@ describe(FrontendAuthClient.name, () => {
         assert.isFalse(await frontendAuthClient.assumeUser(assumedMockUser));
 
         assert.deepEquals(
-            await frontendAuthClient.createAuthenticatedRequestInit(),
+            frontendAuthClient.createAuthenticatedRequestInit(),
             {
                 headers: {},
                 credentials: 'include',
@@ -264,7 +264,7 @@ describe(FrontendAuthClient.name, () => {
         assert.isTrue(await frontendAuthClient.assumeUser(assumedMockUser));
 
         assert.deepEquals(
-            await frontendAuthClient.createAuthenticatedRequestInit(),
+            frontendAuthClient.createAuthenticatedRequestInit(),
             {
                 headers: {
                     [AuthHeaderName.AssumedUser]: JSON.stringify(assumedMockUser),
@@ -280,7 +280,7 @@ describe(FrontendAuthClient.name, () => {
 
         assert.isUndefined(frontendAuthClient.getAssumedUser());
     });
-    it('fails on invalid assumed user', async () => {
+    it('fails on invalid assumed user', () => {
         const {frontendAuthClient, mockLocalStorage} = createMockFrontendAuthClient<{
             userId: User['id'];
         }>(() => true);
@@ -289,7 +289,7 @@ describe(FrontendAuthClient.name, () => {
         mockLocalStorage.store[AuthHeaderName.AssumedUser] = JSON.stringify(assumedMockUser);
 
         assert.deepEquals(
-            await frontendAuthClient.createAuthenticatedRequestInit(),
+            frontendAuthClient.createAuthenticatedRequestInit(),
             {
                 headers: {
                     [AuthHeaderName.AssumedUser]: JSON.stringify(assumedMockUser),
@@ -302,7 +302,7 @@ describe(FrontendAuthClient.name, () => {
         mockLocalStorage.store[AuthHeaderName.AssumedUser] = 'INVALID }{';
 
         assert.deepEquals(
-            await frontendAuthClient.createAuthenticatedRequestInit(),
+            frontendAuthClient.createAuthenticatedRequestInit(),
             {
                 headers: {},
                 credentials: 'include',
@@ -323,7 +323,7 @@ describe(FrontendAuthClient.name, () => {
         assert.isTrue(await frontendAuthClient.assumeUser(assumedMockUser));
 
         assert.deepEquals(
-            await frontendAuthClient.createAuthenticatedRequestInit(),
+            frontendAuthClient.createAuthenticatedRequestInit(),
             {
                 headers: {
                     [mockHeaderName]: JSON.stringify(assumedMockUser),
@@ -333,15 +333,16 @@ describe(FrontendAuthClient.name, () => {
             'Should pass assumed user.',
         );
     });
-    it('logs out on invalid CSRF token', async () => {
+    it('wipes invalid CSRF token without logging out', () => {
         const {frontendAuthClient, callCounts, mockLocalStorage} = createMockFrontendAuthClient<{
             userId: User['id'];
         }>();
 
         mockLocalStorage.localStorage.setItem(testCsrfHeaderName, 'INVALID }{');
 
-        assert.isUndefined(await frontendAuthClient.getCurrentCsrfToken());
+        assert.isUndefined(frontendAuthClient.getCurrentCsrfToken());
 
-        assert.strictEquals(callCounts.authCleared, 1);
+        assert.strictEquals(callCounts.authCleared, 0);
+        assert.isUndefined(mockLocalStorage.store[testCsrfHeaderName]);
     });
 });

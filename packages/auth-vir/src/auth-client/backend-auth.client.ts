@@ -23,10 +23,10 @@ import {
     type UserIdResult,
 } from '../auth.js';
 import {AuthCookieName, type CookieParams} from '../cookie.js';
-import {type CsrfHeaderNameOption} from '../csrf-token.js';
+import {defaultAllowedClockSkew, type CsrfHeaderNameOption} from '../csrf-token.js';
 import {AuthHeaderName, mergeHeaderValues} from '../headers.js';
 import {generateNewJwtKeys, parseJwtKeys, type JwtKeys, type RawJwtKeys} from '../jwt/jwt-keys.js';
-import {type CreateJwtParams} from '../jwt/jwt.js';
+import {type CreateJwtParams, type ParseJwtParams} from '../jwt/jwt.js';
 import {authLog} from '../log.js';
 
 /**
@@ -153,6 +153,13 @@ export type BackendAuthClientConfig<
          * @default {days: 1.5}
          */
         maxSessionDuration: Readonly<AnyDuration>;
+        /**
+         * Allowed clock skew tolerance for JWT and CSRF token expiration checks. Accounts for
+         * differences between server and client clocks.
+         *
+         * @default {minutes: 5}
+         */
+        allowedClockSkew: Readonly<AnyDuration>;
     }>
 >;
 
@@ -250,10 +257,12 @@ export class BackendAuthClient<
     }): Promise<OutgoingHttpHeaders | undefined> {
         const now = getNowInUtcTimezone();
 
-        /** Double check that the JWT hasn't already expired. */
+        const clockSkew = this.config.allowedClockSkew || defaultAllowedClockSkew;
+
+        /** Double check that the JWT hasn't already expired (with clock skew tolerance). */
         const isExpiredAlready = isDateAfter({
             fullDate: now,
-            relativeTo: userIdResult.jwtExpiration,
+            relativeTo: calculateRelativeDate(userIdResult.jwtExpiration, clockSkew),
         });
 
         if (isExpiredAlready) {
@@ -425,13 +434,13 @@ export class BackendAuthClient<
      * Get all the JWT params used when creating the auth cookie, in case you need them for
      * something else too.
      */
-    public async getJwtParams(): Promise<Readonly<CreateJwtParams>> {
+    public async getJwtParams(): Promise<Readonly<CreateJwtParams> & ParseJwtParams> {
         const rawJwtKeys = await this.config.getJwtKeys();
 
         const cacheKey = JSON.stringify(rawJwtKeys);
 
         const cachedParsedKeys = this.cachedParsedJwtKeys[cacheKey];
-        const parsedKeys = cachedParsedKeys ?? (await parseJwtKeys(rawJwtKeys));
+        const parsedKeys = cachedParsedKeys || (await parseJwtKeys(rawJwtKeys));
 
         if (!cachedParsedKeys) {
             this.cachedParsedJwtKeys = {[cacheKey]: parsedKeys};
@@ -441,6 +450,7 @@ export class BackendAuthClient<
             audience: 'server-context',
             issuer: 'server-auth',
             jwtDuration: this.config.userSessionIdleTimeout || defaultSessionIdleTimeout,
+            allowedClockSkew: this.config.allowedClockSkew || defaultAllowedClockSkew,
         };
     }
 
