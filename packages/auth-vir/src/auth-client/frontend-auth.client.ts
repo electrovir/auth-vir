@@ -10,9 +10,11 @@ import {type AnyDuration} from 'date-vir';
 import {listenToActivity} from 'detect-activity';
 import {type EmptyObject} from 'type-fest';
 import {
+    type CsrfHeaderNameOption,
     CsrfTokenFailureReason,
     extractCsrfTokenHeader,
     getCurrentCsrfToken,
+    resolveCsrfHeaderName,
     storeCsrfToken,
     wipeCurrentCsrfToken,
 } from '../csrf-token.js';
@@ -24,68 +26,74 @@ import {authLog} from '../log.js';
  *
  * @category Internal
  */
-export type FrontendAuthClientConfig = PartialWithUndefined<{
-    /**
-     * Determine if the current user can assume the identity of another user. If this is not
-     * defined, all users will be blocked from assuming other user identities.
-     */
-    canAssumeUser: () => MaybePromise<boolean>;
-    /** Called whenever the current user becomes unauthorized and their CSRF token is wiped. */
-    authClearedCallback: () => MaybePromise<void>;
-
-    /**
-     * Performs automatic checks on an interval to see if the user is still authenticated. Omit this
-     * to turn off automatic checks.
-     */
-    checkUser: {
+export type FrontendAuthClientConfig = Readonly<{
+    csrf: Readonly<CsrfHeaderNameOption>;
+}> &
+    PartialWithUndefined<{
         /**
-         * Get a response from the backend to see if the user is still authenticated. If the
-         * response returns a non-authorized status, the user is wiped. Any other status is
-         * ignored.
-         *
-         * If the user is not currently authorized, this should return `undefined` to prevent
-         * unnecessary network traffic.
-         *
-         * This will be called any time the user interacts with the page, debounced by the adjacent
-         * `debounce` property.
+         * Determine if the current user can assume the identity of another user. If this is not
+         * defined, all users will be blocked from assuming other user identities.
          */
-        performCheck: () => MaybePromise<
-            | SelectFrom<
-                  Response,
-                  {
-                      status: true;
-                  }
-              >
-            | undefined
-        >;
-        /**
-         * Debounce for firing `performCheck`.
-         *
-         * @default {minutes: 1}
-         */
-        debounce?: AnyDuration | undefined;
-    };
+        canAssumeUser: () => MaybePromise<boolean>;
+        /** Called whenever the current user becomes unauthorized and their CSRF token is wiped. */
+        authClearedCallback: () => MaybePromise<void>;
 
-    overrides: PartialWithUndefined<{
-        localStorage: Pick<Storage, 'setItem' | 'removeItem' | 'getItem'>;
-        csrfHeaderName: string;
+        /**
+         * Performs automatic checks on an interval to see if the user is still authenticated. Omit
+         * this to turn off automatic checks.
+         */
+        checkUser: {
+            /**
+             * Get a response from the backend to see if the user is still authenticated. If the
+             * response returns a non-authorized status, the user is wiped. Any other status is
+             * ignored.
+             *
+             * If the user is not currently authorized, this should return `undefined` to prevent
+             * unnecessary network traffic.
+             *
+             * This will be called any time the user interacts with the page, debounced by the
+             * adjacent `debounce` property.
+             */
+            performCheck: () => MaybePromise<
+                | SelectFrom<
+                      Response,
+                      {
+                          status: true;
+                      }
+                  >
+                | undefined
+            >;
+            /**
+             * Debounce for firing `performCheck`.
+             *
+             * @default {minutes: 1}
+             */
+            debounce?: AnyDuration | undefined;
+        };
+        /**
+         * Overwrite the header name used for tracking is an admin is assuming the identity of
+         * another user.
+         */
         assumedUserHeaderName: string;
+
+        overrides: PartialWithUndefined<{
+            localStorage: Pick<Storage, 'setItem' | 'removeItem' | 'getItem'>;
+        }>;
     }>;
-}>;
 
 /**
  * An auth client for sending and validating client requests to a backend. This should only be used
  * in a frontend environment as it accesses native browser APIs.
  *
  * @category Auth : Client
- * @category Client
+ * @category Clients
  */
 export class FrontendAuthClient<AssumedUserParams extends JsonCompatibleObject = EmptyObject> {
     protected userCheckInterval: undefined | ReturnType<typeof createBlockingInterval>;
     /** Used to clean up the activity listener on `.destroy()`. */
     protected removeActivityListener: VoidFunction | undefined;
 
-    constructor(protected readonly config: FrontendAuthClientConfig = {}) {
+    constructor(protected readonly config: FrontendAuthClientConfig) {
         if (config.checkUser) {
             this.removeActivityListener = listenToActivity({
                 listener: async () => {
@@ -114,7 +122,7 @@ export class FrontendAuthClient<AssumedUserParams extends JsonCompatibleObject =
 
     /** Wraps {@link getCurrentCsrfToken} to automatically handle wiping an invalid CSRF token. */
     public async getCurrentCsrfToken(): Promise<string | undefined> {
-        const csrfTokenResult = getCurrentCsrfToken(this.config.overrides);
+        const csrfTokenResult = getCurrentCsrfToken(this.config.csrf);
 
         if (
             csrfTokenResult.failure &&
@@ -139,8 +147,7 @@ export class FrontendAuthClient<AssumedUserParams extends JsonCompatibleObject =
         assumedUserParams: Readonly<AssumedUserParams> | undefined,
     ): Promise<boolean> {
         const localStorage = this.config.overrides?.localStorage || globalThis.localStorage;
-        const storageKey =
-            this.config.overrides?.assumedUserHeaderName || AuthHeaderName.AssumedUser;
+        const storageKey = this.config.assumedUserHeaderName || AuthHeaderName.AssumedUser;
 
         if (!assumedUserParams) {
             localStorage.removeItem(storageKey);
@@ -159,7 +166,7 @@ export class FrontendAuthClient<AssumedUserParams extends JsonCompatibleObject =
     /** Gets the assumed user params stored in local storage, if any. */
     public getAssumedUser(): AssumedUserParams | undefined {
         const rawValue = (this.config.overrides?.localStorage || globalThis.localStorage).getItem(
-            this.config.overrides?.assumedUserHeaderName || AuthHeaderName.AssumedUser,
+            this.config.assumedUserHeaderName || AuthHeaderName.AssumedUser,
         );
 
         if (!rawValue) {
@@ -185,12 +192,12 @@ export class FrontendAuthClient<AssumedUserParams extends JsonCompatibleObject =
         const headers: HeadersInit = {
             ...(csrfToken
                 ? {
-                      [AuthHeaderName.CsrfToken]: csrfToken,
+                      [resolveCsrfHeaderName(this.config.csrf)]: csrfToken,
                   }
                 : {}),
             ...(assumedUser
                 ? {
-                      [this.config.overrides?.assumedUserHeaderName || AuthHeaderName.AssumedUser]:
+                      [this.config.assumedUserHeaderName || AuthHeaderName.AssumedUser]:
                           JSON.stringify(assumedUser),
                   }
                 : {}),
@@ -206,7 +213,7 @@ export class FrontendAuthClient<AssumedUserParams extends JsonCompatibleObject =
     public async logout() {
         authLog('auth-vir: LOGOUT - FrontendAuthClient.logout called', new Error().stack);
         await this.config.authClearedCallback?.();
-        wipeCurrentCsrfToken(this.config.overrides);
+        wipeCurrentCsrfToken(this.config.csrf);
     }
 
     /**
@@ -232,7 +239,7 @@ export class FrontendAuthClient<AssumedUserParams extends JsonCompatibleObject =
             throw new Error('Login response failed.');
         }
 
-        const {csrfToken} = extractCsrfTokenHeader(response, this.config.overrides);
+        const {csrfToken} = extractCsrfTokenHeader(response, this.config.csrf);
 
         if (!csrfToken) {
             authLog('auth-vir: LOGOUT - handleLoginResponse: no CSRF token in response');
@@ -240,7 +247,7 @@ export class FrontendAuthClient<AssumedUserParams extends JsonCompatibleObject =
             throw new Error('Did not receive any CSRF token.');
         }
 
-        storeCsrfToken(csrfToken, this.config.overrides);
+        storeCsrfToken(csrfToken, this.config.csrf);
     }
 
     /**
@@ -274,9 +281,9 @@ export class FrontendAuthClient<AssumedUserParams extends JsonCompatibleObject =
         }
 
         /** If the response has a new CSRF token, store it. */
-        const {csrfToken} = extractCsrfTokenHeader(response, this.config.overrides);
+        const {csrfToken} = extractCsrfTokenHeader(response, this.config.csrf);
         if (csrfToken) {
-            storeCsrfToken(csrfToken, this.config.overrides);
+            storeCsrfToken(csrfToken, this.config.csrf);
         }
 
         return true;

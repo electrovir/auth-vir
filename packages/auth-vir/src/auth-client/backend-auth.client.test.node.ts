@@ -9,12 +9,15 @@ import {
     PrismaDatabaseEngine,
 } from 'prisma-vir';
 import {type EmptyObject} from 'type-fest';
+import {type CsrfHeaderNameOption, resolveCsrfHeaderName} from '../csrf-token.js';
 import {testPrismaMigrationsDirPath, testPrismaSchemaFilePath} from '../file-paths.mock.js';
 import {type Prisma, PrismaClient, type User} from '../generated/client.js';
 import {type UserId} from '../generated/models.js';
-import {AuthHeaderName} from '../headers.js';
 import {generateNewJwtKeys} from '../jwt/jwt-keys.js';
 import {BackendAuthClient, type BackendAuthClientConfig} from './backend-auth.client.js';
+
+const testCsrfOption: CsrfHeaderNameOption = {csrfHeaderPrefix: 'test'};
+const testCsrfHeaderName = resolveCsrfHeaderName(testCsrfOption);
 
 function setCookieHeaderToRegularCookieHeader(headers: Readonly<OutgoingHttpHeaders>): string {
     const setCookies = headers['set-cookie'] || [];
@@ -72,9 +75,9 @@ async function setupBackendAuthClientTest<AssumedUserParams extends AnyObject = 
     const backendAuthClient = new BackendAuthClient<
         SelectFrom<User, {id: true; name: true}>,
         UserId,
-        AssumedUserParams,
-        AuthHeaderName.CsrfToken
+        AssumedUserParams
     >({
+        csrf: testCsrfOption,
         getJwtKeys() {
             return jwtKeys;
         },
@@ -114,7 +117,7 @@ describe(BackendAuthClient.name, () => {
         });
 
         const requestHeaders: IncomingHttpHeaders = {
-            [AuthHeaderName.CsrfToken]: String(cookieHeaders[AuthHeaderName.CsrfToken]),
+            [testCsrfHeaderName]: String(cookieHeaders[testCsrfHeaderName]),
             cookie: setCookieHeaderToRegularCookieHeader(cookieHeaders),
         };
 
@@ -183,7 +186,7 @@ describe(BackendAuthClient.name, () => {
         });
 
         const requestHeaders: IncomingHttpHeaders = {
-            [AuthHeaderName.CsrfToken]: String(cookieHeaders[AuthHeaderName.CsrfToken]),
+            [testCsrfHeaderName]: String(cookieHeaders[testCsrfHeaderName]),
             cookie: setCookieHeaderToRegularCookieHeader(cookieHeaders),
         };
 

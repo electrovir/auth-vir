@@ -6,7 +6,6 @@ import {check} from '@augment-vir/assert';
  * @category Internal
  */
 export enum AuthHeaderName {
-    CsrfToken = 'csrf-token',
     AssumedUser = 'assumed-user',
     /**
      * Used to track if the current user is signed in only with a sign-up cookie, which prevents us

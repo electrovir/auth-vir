@@ -23,6 +23,7 @@ import {
     type UserIdResult,
 } from '../auth.js';
 import {AuthCookieName, type CookieParams} from '../cookie.js';
+import {type CsrfHeaderNameOption} from '../csrf-token.js';
 import {AuthHeaderName, mergeHeaderValues} from '../headers.js';
 import {generateNewJwtKeys, parseJwtKeys, type JwtKeys, type RawJwtKeys} from '../jwt/jwt-keys.js';
 import {type CreateJwtParams} from '../jwt/jwt.js';
@@ -57,9 +58,9 @@ export type BackendAuthClientConfig<
     DatabaseUser extends AnyObject,
     UserId extends string | number,
     AssumedUserParams extends JsonCompatibleObject = EmptyObject,
-    CsrfHeaderName extends string = AuthHeaderName.CsrfToken,
 > = Readonly<
     {
+        csrf: Readonly<CsrfHeaderNameOption>;
         /** The origin of your backend that is offering auth cookies. */
         serviceOrigin: string;
         /** Finds the relevant user from your own database. */
@@ -86,6 +87,11 @@ export type BackendAuthClientConfig<
          */
         isDev: boolean;
     } & PartialWithUndefined<{
+        /**
+         * Overwrite the header name used for tracking is an admin is assuming the identity of
+         * another user.
+         */
+        assumedUserHeaderName: string;
         /**
          * Optionally generate a service origin from request headers. The generated origin is used
          * for set-cookie headers.
@@ -144,13 +150,9 @@ export type BackendAuthClientConfig<
          * The maximum duration a session can last, regardless of activity. After this time, the
          * user will be logged out even if they are actively using the application.
          *
-         * @default {weeks: 2}
+         * @default {days: 1.5}
          */
         maxSessionDuration: Readonly<AnyDuration>;
-        overrides: PartialWithUndefined<{
-            csrfHeaderName: CsrfHeaderName;
-            assumedUserHeaderName: string;
-        }>;
     }>
 >;
 
@@ -163,7 +165,7 @@ const defaultSessionRefreshTimeout: Readonly<AnyDuration> = {
 };
 
 const defaultMaxSessionDuration: Readonly<AnyDuration> = {
-    weeks: 2,
+    days: 1.5,
 };
 
 /**
@@ -171,23 +173,17 @@ const defaultMaxSessionDuration: Readonly<AnyDuration> = {
  * a backend environment as it accesses native Node packages.
  *
  * @category Auth : Host
- * @category Client
+ * @category Clients
  */
 export class BackendAuthClient<
     DatabaseUser extends AnyObject,
     UserId extends string | number,
     AssumedUserParams extends AnyObject = EmptyObject,
-    CsrfHeaderName extends string = AuthHeaderName.CsrfToken,
 > {
     protected cachedParsedJwtKeys: Record<string, Readonly<JwtKeys>> = {};
 
     constructor(
-        protected readonly config: BackendAuthClientConfig<
-            DatabaseUser,
-            UserId,
-            AssumedUserParams,
-            CsrfHeaderName
-        >,
+        protected readonly config: BackendAuthClientConfig<DatabaseUser, UserId, AssumedUserParams>,
     ) {}
 
     /** Get all the parameters used for cookie generation. */
@@ -343,7 +339,7 @@ export class BackendAuthClient<
         }
 
         const assumedUserHeader: string | undefined = ensureArray(
-            headers[this.config.overrides?.assumedUserHeaderName || AuthHeaderName.AssumedUser],
+            headers[this.config.assumedUserHeaderName || AuthHeaderName.AssumedUser],
         )[0];
 
         if (!assumedUserHeader) {
@@ -384,8 +380,8 @@ export class BackendAuthClient<
         const userIdResult = await extractUserIdFromRequestHeaders<UserId>(
             requestHeaders,
             await this.getJwtParams(),
+            this.config.csrf,
             isSignUpCookie ? AuthCookieName.SignUp : AuthCookieName.Auth,
-            this.config.overrides,
         );
         if (!userIdResult) {
             if (!isSignUpCookie) {
@@ -460,7 +456,7 @@ export class BackendAuthClient<
             }
         >,
     ): Promise<
-        Partial<Record<CsrfHeaderName, string>> & {
+        Record<string, string | string[]> & {
             'set-cookie': string[];
         }
     > {
@@ -474,23 +470,23 @@ export class BackendAuthClient<
         );
         const signUpCookieHeaders =
             params.allCookies || params.isSignUpCookie
-                ? (generateLogoutHeaders(
+                ? generateLogoutHeaders(
                       await this.getCookieParams({
                           isSignUpCookie: true,
                           requestHeaders: undefined,
                       }),
-                      this.config.overrides,
-                  ) satisfies Record<CsrfHeaderName, string>)
+                      this.config.csrf,
+                  )
                 : undefined;
         const authCookieHeaders =
             params.allCookies || !params.isSignUpCookie
-                ? (generateLogoutHeaders(
+                ? generateLogoutHeaders(
                       await this.getCookieParams({
                           isSignUpCookie: false,
                           requestHeaders: undefined,
                       }),
-                      this.config.overrides,
-                  ) satisfies Record<CsrfHeaderName, string>)
+                      this.config.csrf,
+                  )
                 : undefined;
 
         const setCookieHeader: {
@@ -504,7 +500,7 @@ export class BackendAuthClient<
         const csrfTokenHeader = {
             ...authCookieHeaders,
             ...signUpCookieHeaders,
-        } as Record<CsrfHeaderName, string>;
+        };
 
         return {
             ...csrfTokenHeader,
@@ -531,15 +527,15 @@ export class BackendAuthClient<
                       isSignUpCookie: !isSignUpCookie,
                       requestHeaders,
                   }),
-                  this.config.overrides,
+                  this.config.csrf,
               )
             : undefined;
 
         const existingUserIdResult = await extractUserIdFromRequestHeaders<UserId>(
             requestHeaders,
             await this.getJwtParams(),
+            this.config.csrf,
             isSignUpCookie ? AuthCookieName.SignUp : AuthCookieName.Auth,
-            this.config.overrides,
         );
         const sessionStartedAt = existingUserIdResult?.sessionStartedAt;
 
@@ -549,7 +545,7 @@ export class BackendAuthClient<
                 isSignUpCookie,
                 requestHeaders,
             }),
-            this.config.overrides,
+            this.config.csrf,
             sessionStartedAt,
         );
 

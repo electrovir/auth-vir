@@ -7,7 +7,11 @@ import {
 } from '@augment-vir/common';
 import {describe, it} from '@augment-vir/test';
 import {type EmptyObject} from 'type-fest';
-import {generateCsrfToken} from '../csrf-token.js';
+import {
+    generateCsrfToken,
+    resolveCsrfHeaderName,
+    type CsrfHeaderNameOption,
+} from '../csrf-token.js';
 import {type User} from '../generated/client.js';
 import {
     AuthHeaderName,
@@ -16,12 +20,16 @@ import {
     type FrontendAuthClientConfig,
 } from '../index.js';
 
+const testCsrfOption: CsrfHeaderNameOption = {csrfHeaderPrefix: 'test'};
+const testCsrfHeaderName = resolveCsrfHeaderName(testCsrfOption);
+
 describe(FrontendAuthClient.name, () => {
     function createMockFrontendAuthClient<
         AssumedUserParams extends JsonCompatibleObject = EmptyObject,
     >(
         canAssumeUser?: FrontendAuthClientConfig['canAssumeUser'],
-        overrides: Omit<NonNullable<FrontendAuthClientConfig['overrides']>, 'localStorage'> = {},
+        csrfHeaderNameOption: Readonly<CsrfHeaderNameOption> = testCsrfOption,
+        overrides?: Partial<FrontendAuthClientConfig>,
     ) {
         const mockLocalStorage = createMockLocalStorage();
         const callCounts = {
@@ -29,14 +37,15 @@ describe(FrontendAuthClient.name, () => {
         };
 
         const frontendAuthClient = new FrontendAuthClient<AssumedUserParams>({
+            csrf: csrfHeaderNameOption,
             authClearedCallback() {
                 ++callCounts.authCleared;
             },
             canAssumeUser,
             overrides: {
-                ...overrides,
                 localStorage: mockLocalStorage.localStorage,
             },
+            ...overrides,
         });
 
         return {
@@ -57,13 +66,13 @@ describe(FrontendAuthClient.name, () => {
         };
 
         const frontendAuthClient = new FrontendAuthClient<{id: string}>({
+            csrf: {
+                csrfHeaderName: mockCsrfHeaderName,
+            },
             canAssumeUser() {
                 return true;
             },
-            overrides: {
-                csrfHeaderName: mockCsrfHeaderName,
-                assumedUserHeaderName: mockAssumedUserHeaderName,
-            },
+            assumedUserHeaderName: mockAssumedUserHeaderName,
         });
 
         globalThis.localStorage.setItem(mockAssumedUserHeaderName, JSON.stringify(mockUser));
@@ -89,7 +98,7 @@ describe(FrontendAuthClient.name, () => {
             'Should not be authenticated yet.',
         );
         assert.isUndefined(
-            mockLocalStorage.store[AuthHeaderName.CsrfToken] as any,
+            mockLocalStorage.store[testCsrfHeaderName] as any,
             'CSRF token should not be stored yet.',
         );
 
@@ -110,7 +119,7 @@ describe(FrontendAuthClient.name, () => {
             status: HttpStatus.Ok,
             ok: true,
             headers: new Headers({
-                [AuthHeaderName.CsrfToken]: JSON.stringify(csrfToken),
+                [testCsrfHeaderName]: JSON.stringify(csrfToken),
             }),
         };
 
@@ -120,7 +129,7 @@ describe(FrontendAuthClient.name, () => {
             await frontendAuthClient.createAuthenticatedRequestInit(),
             {
                 headers: {
-                    [AuthHeaderName.CsrfToken]: csrfToken.token,
+                    [testCsrfHeaderName]: csrfToken.token,
                 },
                 credentials: 'include',
             },
@@ -128,7 +137,7 @@ describe(FrontendAuthClient.name, () => {
         );
         await frontendAuthClient.verifyResponseAuth(loginResponse);
         assert.strictEquals(
-            mockLocalStorage.store[AuthHeaderName.CsrfToken],
+            mockLocalStorage.store[testCsrfHeaderName],
             JSON.stringify(csrfToken),
             'CSRF token should be stored now.',
         );
@@ -177,7 +186,7 @@ describe(FrontendAuthClient.name, () => {
             frontendAuthClient.handleLoginResponse({
                 ok: true,
                 headers: new Headers({
-                    [AuthHeaderName.CsrfToken]: JSON.stringify(csrfToken),
+                    [testCsrfHeaderName]: JSON.stringify(csrfToken),
                 }),
             }),
         );
@@ -186,15 +195,19 @@ describe(FrontendAuthClient.name, () => {
         assert.isUndefined(await frontendAuthClient.getCurrentCsrfToken());
     });
 
-    it('is constructable without any parameters', () => {
-        assert.isDefined(new FrontendAuthClient());
+    it('is constructable with only csrf header name option', () => {
+        assert.isDefined(
+            new FrontendAuthClient({
+                csrf: testCsrfOption,
+            }),
+        );
     });
 
     it('logs out on unauthorized response', async () => {
         const {frontendAuthClient, mockLocalStorage} = createMockFrontendAuthClient();
 
         assert.isUndefined(
-            mockLocalStorage.store[AuthHeaderName.CsrfToken] as any,
+            mockLocalStorage.store[testCsrfHeaderName] as any,
             'CSRF token should not be stored yet.',
         );
 
@@ -205,11 +218,11 @@ describe(FrontendAuthClient.name, () => {
         await frontendAuthClient.handleLoginResponse({
             ok: true,
             headers: new Headers({
-                [AuthHeaderName.CsrfToken]: JSON.stringify(csrfToken),
+                [testCsrfHeaderName]: JSON.stringify(csrfToken),
             }),
         });
         assert.strictEquals(
-            mockLocalStorage.store[AuthHeaderName.CsrfToken],
+            mockLocalStorage.store[testCsrfHeaderName],
             JSON.stringify(csrfToken),
             'CSRF token should be stored now.',
         );
@@ -220,7 +233,7 @@ describe(FrontendAuthClient.name, () => {
         });
 
         assert.isUndefined(
-            mockLocalStorage.store[AuthHeaderName.CsrfToken],
+            mockLocalStorage.store[testCsrfHeaderName],
             'CSRF token should be cleared.',
         );
     });
@@ -302,7 +315,7 @@ describe(FrontendAuthClient.name, () => {
 
         const {frontendAuthClient} = createMockFrontendAuthClient<{
             userId: User['id'];
-        }>(() => true, {
+        }>(() => true, testCsrfOption, {
             assumedUserHeaderName: mockHeaderName,
         });
         const assumedMockUser = {userId: 'yo' as User['id']};
@@ -325,7 +338,7 @@ describe(FrontendAuthClient.name, () => {
             userId: User['id'];
         }>();
 
-        mockLocalStorage.localStorage.setItem(AuthHeaderName.CsrfToken, 'INVALID }{');
+        mockLocalStorage.localStorage.setItem(testCsrfHeaderName, 'INVALID }{');
 
         assert.isUndefined(await frontendAuthClient.getCurrentCsrfToken());
 

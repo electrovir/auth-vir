@@ -9,10 +9,11 @@ import {
 } from '@augment-vir/common';
 import {generateApi, mapServiceDevPort} from '@rest-vir/define-service';
 import {
-    AuthHeaderName,
     getCurrentCsrfToken,
     handleAuthResponse,
+    resolveCsrfHeaderName,
     wipeCurrentCsrfToken,
+    type CsrfHeaderNameOption,
 } from 'auth-vir';
 import {asyncProp, css, defineElement, html, listen, nothing, type AsyncProp} from 'element-vir';
 import {
@@ -24,6 +25,9 @@ import {
     ViraInputType,
 } from 'vira';
 import {demoService, type DemoService} from '../../demo-service-definition.js';
+
+const demoCsrfOption: CsrfHeaderNameOption = {csrfHeaderPrefix: 'demo'};
+const demoCsrfHeaderName = resolveCsrfHeaderName(demoCsrfOption);
 
 function setupAuthState() {
     const deferredDemoApi = new DeferredPromise<DemoApi>();
@@ -45,14 +49,14 @@ function setupAuthState() {
 async function loadUser(
     apiPromise: Promise<DemoApi>,
 ): Promise<DemoService['endpoints']['/user']['ResponseType'] | undefined> {
-    const {csrfToken} = getCurrentCsrfToken();
+    const {csrfToken} = getCurrentCsrfToken(demoCsrfOption);
 
     if (csrfToken) {
         const api = await apiPromise;
         const output = await api.endpoints['/user'].fetch({
             options: {
                 headers: {
-                    [AuthHeaderName.CsrfToken]: csrfToken.token,
+                    [demoCsrfHeaderName]: csrfToken.token,
                 },
             },
         });
@@ -73,10 +77,10 @@ export async function connectToDemoApi(
     return generateApi(await mapServiceDevPort(demoService), {
         endpointFetch: {
             async fetch(url, init) {
-                const {csrfToken} = getCurrentCsrfToken();
+                const {csrfToken} = getCurrentCsrfToken(demoCsrfOption);
                 const extraHeaders = csrfToken
                     ? {
-                          [AuthHeaderName.CsrfToken]: csrfToken.token,
+                          [demoCsrfHeaderName]: csrfToken.token,
                       }
                     : {};
 
@@ -93,7 +97,7 @@ export async function connectToDemoApi(
                  */
                 if (response.status === HttpStatus.Unauthorized) {
                     asyncUser.setValue(undefined);
-                    wipeCurrentCsrfToken();
+                    wipeCurrentCsrfToken(demoCsrfOption);
                 }
 
                 return response;
@@ -184,7 +188,7 @@ export const DemoApp = defineElement()({
                     },
                 });
 
-                handleAuthResponse(response.response);
+                handleAuthResponse(response.response, demoCsrfOption);
 
                 if (response.ok) {
                     state.authenticatedUser.setValue(response.data);
@@ -293,7 +297,7 @@ export const DemoApp = defineElement()({
                     <${ViraButton.assign({text: 'Logout'})}
                         ${listen('click', () => {
                             state.authenticatedUser.setValue(undefined);
-                            wipeCurrentCsrfToken();
+                            wipeCurrentCsrfToken(demoCsrfOption);
                         })}
                     ></${ViraButton}>
                 `;

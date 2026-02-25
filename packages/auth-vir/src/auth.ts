@@ -8,13 +8,14 @@ import {
     generateAuthCookie,
 } from './cookie.js';
 import {
+    type CsrfHeaderNameOption,
     extractCsrfTokenHeader,
     generateCsrfToken,
     parseCsrfToken,
+    resolveCsrfHeaderName,
     storeCsrfToken,
     wipeCurrentCsrfToken,
 } from './csrf-token.js';
-import {AuthHeaderName} from './headers.js';
 import {type ParseJwtParams} from './jwt/jwt.js';
 import {type JwtUserData} from './jwt/user-jwt.js';
 import {authLog} from './log.js';
@@ -60,11 +61,9 @@ export type UserIdResult<UserId extends string | number> = {
 
 function readCsrfTokenHeader(
     headers: HeaderContainer,
-    overrides: PartialWithUndefined<{
-        csrfHeaderName: string;
-    }>,
+    csrfHeaderNameOption: Readonly<CsrfHeaderNameOption>,
 ): string | undefined {
-    const rawCsrfToken = readHeader(headers, overrides.csrfHeaderName || AuthHeaderName.CsrfToken);
+    const rawCsrfToken = readHeader(headers, resolveCsrfHeaderName(csrfHeaderNameOption));
 
     if (!rawCsrfToken) {
         return undefined;
@@ -90,13 +89,11 @@ function readCsrfTokenHeader(
 export async function extractUserIdFromRequestHeaders<UserId extends string | number>(
     headers: HeaderContainer,
     jwtParams: Readonly<ParseJwtParams>,
+    csrfHeaderNameOption: Readonly<CsrfHeaderNameOption>,
     cookieName: string = AuthCookieName.Auth,
-    overrides: PartialWithUndefined<{
-        csrfHeaderName: string;
-    }> = {},
 ): Promise<Readonly<UserIdResult<UserId>> | undefined> {
     try {
-        const csrfToken = readCsrfTokenHeader(headers, overrides);
+        const csrfToken = readCsrfTokenHeader(headers, csrfHeaderNameOption);
         const cookie = readHeader(headers, 'cookie');
 
         if (!cookie || !csrfToken) {
@@ -186,27 +183,19 @@ export async function insecureExtractUserIdFromCookieAlone<UserId extends string
  *
  * @category Auth : Host
  */
-export async function generateSuccessfulLoginHeaders<
-    CsrfHeaderName extends string = AuthHeaderName.CsrfToken,
->(
+export async function generateSuccessfulLoginHeaders(
     /** The id from your database of the user you're authenticating. */
     userId: string | number,
     cookieConfig: Readonly<CookieParams>,
-    overrides: PartialWithUndefined<{
-        csrfHeaderName: CsrfHeaderName;
-    }> = {},
+    csrfHeaderNameOption: Readonly<CsrfHeaderNameOption>,
     /**
      * The timestamp (in seconds) when the session originally started. If not provided, the current
      * time will be used (for new sessions).
      */
     sessionStartedAt?: number | undefined,
-): Promise<
-    {
-        'set-cookie': string;
-    } & Record<CsrfHeaderName, string>
-> {
+): Promise<Record<string, string>> {
     const csrfToken = generateCsrfToken(cookieConfig.cookieDuration);
-    const csrfHeaderName = (overrides.csrfHeaderName || AuthHeaderName.CsrfToken) as CsrfHeaderName;
+    const csrfHeaderName = resolveCsrfHeaderName(csrfHeaderNameOption);
 
     return {
         'set-cookie': await generateAuthCookie(
@@ -218,9 +207,7 @@ export async function generateSuccessfulLoginHeaders<
             cookieConfig,
         ),
         [csrfHeaderName]: JSON.stringify(csrfToken),
-    } as {
-        'set-cookie': string;
-    } & Record<CsrfHeaderName, string>;
+    };
 }
 
 /**
@@ -229,14 +216,10 @@ export async function generateSuccessfulLoginHeaders<
  *
  * @category Auth : Host
  */
-export function generateLogoutHeaders<CsrfHeaderName extends string = AuthHeaderName.CsrfToken>(
+export function generateLogoutHeaders(
     cookieConfig: Readonly<Pick<CookieParams, 'cookieName' | 'hostOrigin' | 'isDev'>>,
-    overrides: PartialWithUndefined<{
-        csrfHeaderName: CsrfHeaderName;
-    }> = {},
-): {
-    'set-cookie': string;
-} & Record<CsrfHeaderName, string> {
+    csrfHeaderNameOption: Readonly<CsrfHeaderNameOption>,
+): Record<string, string> {
     authLog(
         'auth-vir: LOGOUT - generateLogoutHeaders called',
         {
@@ -244,14 +227,12 @@ export function generateLogoutHeaders<CsrfHeaderName extends string = AuthHeader
         },
         new Error().stack,
     );
-    const csrfHeaderName = (overrides.csrfHeaderName || AuthHeaderName.CsrfToken) as CsrfHeaderName;
+    const csrfHeaderName = resolveCsrfHeaderName(csrfHeaderNameOption);
 
     return {
         'set-cookie': clearAuthCookie(cookieConfig),
         [csrfHeaderName]: 'redacted',
-    } as {
-        'set-cookie': string;
-    } & Record<CsrfHeaderName, string>;
+    };
 }
 
 /**
@@ -265,31 +246,30 @@ export function generateLogoutHeaders<CsrfHeaderName extends string = AuthHeader
  */
 export function handleAuthResponse(
     response: Readonly<Pick<Response, 'ok' | 'headers'>>,
-    overrides: PartialWithUndefined<{
-        /**
-         * Allows mocking or overriding the global `localStorage`.
-         *
-         * @default globalThis.localStorage
-         */
-        localStorage: Pick<Storage, 'setItem' | 'removeItem'>;
-        /** Override the default CSRF token header name. */
-        csrfHeaderName: string;
-    }> = {},
+    options: Readonly<CsrfHeaderNameOption> &
+        PartialWithUndefined<{
+            /**
+             * Allows mocking or overriding the global `localStorage`.
+             *
+             * @default globalThis.localStorage
+             */
+            localStorage: Pick<Storage, 'setItem' | 'removeItem'>;
+        }>,
 ) {
     if (!response.ok) {
         authLog('auth-vir: LOGOUT - handleAuthResponse: response not ok, wiping CSRF token');
-        wipeCurrentCsrfToken(overrides);
+        wipeCurrentCsrfToken(options);
         return;
     }
 
-    const {csrfToken} = extractCsrfTokenHeader(response, overrides);
+    const {csrfToken} = extractCsrfTokenHeader(response, options);
 
     if (!csrfToken) {
         authLog('auth-vir: LOGOUT - handleAuthResponse: no CSRF token in response, wiping');
-        wipeCurrentCsrfToken(overrides);
+        wipeCurrentCsrfToken(options);
         throw new Error('Did not receive any CSRF token.');
     }
 
     authLog('auth-vir: handleAuthResponse - successfully stored CSRF token');
-    storeCsrfToken(csrfToken, overrides);
+    storeCsrfToken(csrfToken, options);
 }

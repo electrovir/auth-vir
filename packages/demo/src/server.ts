@@ -3,16 +3,20 @@ import {randomString} from '@augment-vir/common';
 import {HttpStatus, implementService} from '@rest-vir/implement-service';
 import {startService} from '@rest-vir/run-service';
 import {
-    AuthHeaderName,
     doesPasswordMatchHash,
     extractUserIdFromRequestHeaders,
     generateNewJwtKeys,
     generateSuccessfulLoginHeaders,
     hashPassword,
     parseJwtKeys,
+    resolveCsrfHeaderName,
     type CreateJwtParams,
+    type CsrfHeaderNameOption,
 } from 'auth-vir';
 import {demoService, type DemoService} from './demo-service-definition.js';
+
+const demoCsrfOption: CsrfHeaderNameOption = {csrfHeaderPrefix: 'demo'};
+const demoCsrfHeaderName = resolveCsrfHeaderName(demoCsrfOption);
 
 type MockUser = {
     id: string;
@@ -46,7 +50,7 @@ const endpointAuthConfig = {
 const implementedService = implementService({
     service: demoService,
     customHeaders: [
-        AuthHeaderName.CsrfToken,
+        demoCsrfHeaderName,
     ],
     async createContext({requestHeaders, endpointDefinition}) {
         if (!endpointDefinition) {
@@ -69,6 +73,7 @@ const implementedService = implementService({
                 ...jwtParams,
                 jwtKeys,
             },
+            demoCsrfOption,
         );
 
         // eslint-disable-next-line @typescript-eslint/no-deprecated
@@ -135,15 +140,19 @@ const implementedService = implementService({
                     name: userMatch.name,
                     username: userMatch.username,
                 },
-                headers: await generateSuccessfulLoginHeaders(userMatch.id, {
-                    cookieDuration: {hours: 2},
-                    hostOrigin: server.serviceOrigin,
-                    jwtParams: {
-                        ...jwtParams,
-                        jwtKeys,
+                headers: await generateSuccessfulLoginHeaders(
+                    userMatch.id,
+                    {
+                        cookieDuration: {hours: 2},
+                        hostOrigin: server.serviceOrigin,
+                        jwtParams: {
+                            ...jwtParams,
+                            jwtKeys,
+                        },
+                        isDev: true,
                     },
-                    isDev: true,
-                }),
+                    demoCsrfOption,
+                ),
             };
         },
         async '/sign-up'({context, requestData, server}) {
@@ -179,15 +188,19 @@ const implementedService = implementService({
                     name: newUser.name,
                     username: newUser.username,
                 },
-                headers: await generateSuccessfulLoginHeaders(newUser.id, {
-                    cookieDuration: {hours: 2},
-                    hostOrigin: server.serviceOrigin,
-                    jwtParams: {
-                        ...jwtParams,
-                        jwtKeys,
+                headers: await generateSuccessfulLoginHeaders(
+                    newUser.id,
+                    {
+                        cookieDuration: {hours: 2},
+                        hostOrigin: server.serviceOrigin,
+                        jwtParams: {
+                            ...jwtParams,
+                            jwtKeys,
+                        },
+                        isDev: true,
                     },
-                    isDev: true,
-                }),
+                    demoCsrfOption,
+                ),
             };
         },
         '/user'({context}) {

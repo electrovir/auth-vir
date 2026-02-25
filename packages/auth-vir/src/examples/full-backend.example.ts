@@ -8,9 +8,18 @@ import {
     parseJwtKeys,
     type CookieParams,
     type CreateJwtParams,
+    type CsrfHeaderNameOption,
 } from '../index.js';
 
 type MyUserId = string;
+
+/**
+ * The CSRF header prefix for this app. Either `csrfHeaderPrefix` or `csrfHeaderName` must be
+ * provided to all CSRF-related functions.
+ */
+const csrfOption: CsrfHeaderNameOption = {
+    csrfHeaderPrefix: 'my-app',
+};
 
 /**
  * Use this for a /login endpoint.
@@ -32,7 +41,7 @@ export async function handleLogin(
         throw new Error('Credentials mismatch.');
     }
 
-    const authHeaders = await generateSuccessfulLoginHeaders(user.id, cookieParams);
+    const authHeaders = await generateSuccessfulLoginHeaders(user.id, cookieParams, csrfOption);
     response.setHeaders(new Headers(authHeaders));
 }
 
@@ -48,7 +57,7 @@ export async function createUser(
 ) {
     const newUser = await createUserInDatabase(userRequestData);
 
-    const authHeaders = await generateSuccessfulLoginHeaders(newUser.id, cookieParams);
+    const authHeaders = await generateSuccessfulLoginHeaders(newUser.id, cookieParams, csrfOption);
     response.setHeaders(new Headers(authHeaders));
 }
 
@@ -59,7 +68,7 @@ export async function createUser(
  */
 export async function getAuthenticatedUser(request: ClientRequest) {
     const userId = (
-        await extractUserIdFromRequestHeaders<MyUserId>(request.getHeaders(), jwtParams)
+        await extractUserIdFromRequestHeaders<MyUserId>(request.getHeaders(), jwtParams, csrfOption)
     )?.userId;
     const user = userId ? findUserInDatabaseById(userId) : undefined;
 

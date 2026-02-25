@@ -1,13 +1,26 @@
 import {HttpStatus} from '@augment-vir/common';
-import {AuthHeaderName} from '../headers.js';
-import {getCurrentCsrfToken, handleAuthResponse, wipeCurrentCsrfToken} from '../index.js';
+import {
+    type CsrfHeaderNameOption,
+    getCurrentCsrfToken,
+    handleAuthResponse,
+    resolveCsrfHeaderName,
+    wipeCurrentCsrfToken,
+} from '../index.js';
+
+/**
+ * The CSRF header prefix for this app. Either `csrfHeaderPrefix` or `csrfHeaderName` must be
+ * provided to all CSRF-related functions.
+ */
+const csrfOption: CsrfHeaderNameOption = {
+    csrfHeaderPrefix: 'my-app',
+};
 
 /** Call this when the user logs in for the first time this session. */
 export async function sendLoginRequest(
     userLoginData: {username: string; password: string},
     loginUrl: string,
 ) {
-    if (getCurrentCsrfToken().csrfToken) {
+    if (getCurrentCsrfToken(csrfOption).csrfToken) {
         throw new Error('Already logged in.');
     }
 
@@ -17,7 +30,7 @@ export async function sendLoginRequest(
         credentials: 'include',
     });
 
-    handleAuthResponse(response);
+    handleAuthResponse(response, csrfOption);
 
     return response;
 }
@@ -28,7 +41,7 @@ export async function sendAuthenticatedRequest(
     requestInit: Omit<RequestInit, 'headers'> = {},
     headers: Record<string, string> = {},
 ) {
-    const {csrfToken} = getCurrentCsrfToken();
+    const {csrfToken} = getCurrentCsrfToken(csrfOption);
 
     if (!csrfToken) {
         throw new Error('Not authenticated.');
@@ -39,7 +52,7 @@ export async function sendAuthenticatedRequest(
         credentials: 'include',
         headers: {
             ...headers,
-            [AuthHeaderName.CsrfToken]: csrfToken.token,
+            [resolveCsrfHeaderName(csrfOption)]: csrfToken.token,
         },
     });
 
@@ -49,7 +62,7 @@ export async function sendAuthenticatedRequest(
      * another tab.)
      */
     if (response.status === HttpStatus.Unauthorized) {
-        wipeCurrentCsrfToken();
+        wipeCurrentCsrfToken(csrfOption);
         throw new Error(`User no longer logged in.`);
     } else {
         return response;
@@ -58,5 +71,5 @@ export async function sendAuthenticatedRequest(
 
 /** Call this when the user explicitly clicks a "log out" button. */
 export function logout() {
-    wipeCurrentCsrfToken();
+    wipeCurrentCsrfToken(csrfOption);
 }

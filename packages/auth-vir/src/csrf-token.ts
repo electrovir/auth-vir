@@ -13,7 +13,6 @@ import {
 } from 'date-vir';
 import {defineShape, parseJsonWithShape} from 'object-shape-tester';
 import {type RequireExactlyOne} from 'type-fest';
-import {AuthHeaderName} from './headers.js';
 import {authLog} from './log.js';
 
 /**
@@ -63,6 +62,37 @@ export enum CsrfTokenFailureReason {
 }
 
 /**
+ * Options for specifying the CSRF token header name.
+ *
+ * @category Auth : Client
+ * @category Auth : Host
+ */
+export type CsrfHeaderNameOption = RequireExactlyOne<{
+    /** Prefix used to generate the header name: `${prefix}-auth-vir-csrf-token`. */
+    csrfHeaderPrefix: string;
+    /** Overrides the entire CSRF header name. */
+    csrfHeaderName: string;
+}>;
+
+/**
+ * Resolves a {@link CsrfHeaderNameOption} to the actual header name string.
+ *
+ * @category Auth : Client
+ * @category Auth : Host
+ */
+export function resolveCsrfHeaderName(option: Readonly<CsrfHeaderNameOption>): string {
+    if ('csrfHeaderName' in option && option.csrfHeaderName) {
+        return option.csrfHeaderName;
+    } else {
+        return [
+            option.csrfHeaderPrefix,
+            'auth-vir',
+            'csrf-token',
+        ].join('-');
+    }
+}
+
+/**
  * Output from {@link getCurrentCsrfToken}.
  *
  * @category Internal
@@ -79,11 +109,9 @@ export type GetCsrfTokenResult = RequireExactlyOne<{
  */
 export function extractCsrfTokenHeader(
     response: Readonly<PartialWithUndefined<SelectFrom<Response, {headers: true}>>>,
-    overrides: PartialWithUndefined<{
-        csrfHeaderName: string;
-    }> = {},
+    csrfHeaderNameOption: Readonly<CsrfHeaderNameOption>,
 ): Readonly<GetCsrfTokenResult> {
-    const csrfTokenHeaderName = overrides.csrfHeaderName || AuthHeaderName.CsrfToken;
+    const csrfTokenHeaderName = resolveCsrfHeaderName(csrfHeaderNameOption);
 
     const rawCsrfToken = response.headers?.get(csrfTokenHeaderName);
 
@@ -97,19 +125,18 @@ export function extractCsrfTokenHeader(
  */
 export function storeCsrfToken(
     csrfToken: Readonly<CsrfToken>,
-    overrides: PartialWithUndefined<{
-        /**
-         * Allows mocking or overriding the global `localStorage`.
-         *
-         * @default globalThis.localStorage
-         */
-        localStorage: Pick<Storage, 'setItem' | 'removeItem'>;
-        /** Override the default CSRF token header name. */
-        csrfHeaderName: string;
-    }> = {},
+    options: Readonly<CsrfHeaderNameOption> &
+        PartialWithUndefined<{
+            /**
+             * Allows mocking or overriding the global `localStorage`.
+             *
+             * @default globalThis.localStorage
+             */
+            localStorage: Pick<Storage, 'setItem' | 'removeItem'>;
+        }>,
 ) {
-    (overrides.localStorage || globalThis.localStorage).setItem(
-        overrides.csrfHeaderName || AuthHeaderName.CsrfToken,
+    (options.localStorage || globalThis.localStorage).setItem(
+        resolveCsrfHeaderName(options),
         JSON.stringify(csrfToken),
     );
 }
@@ -166,21 +193,19 @@ export function parseCsrfToken(value: string | undefined | null): Readonly<GetCs
  * @category Auth : Client
  */
 export function getCurrentCsrfToken(
-    overrides: PartialWithUndefined<{
-        /**
-         * Allows mocking or overriding the global `localStorage`.
-         *
-         * @default globalThis.localStorage
-         */
-        localStorage: Pick<Storage, 'getItem'>;
-        /** Override the default CSRF token header name. */
-        csrfHeaderName: string;
-    }> = {},
+    options: Readonly<CsrfHeaderNameOption> &
+        PartialWithUndefined<{
+            /**
+             * Allows mocking or overriding the global `localStorage`.
+             *
+             * @default globalThis.localStorage
+             */
+            localStorage: Pick<Storage, 'getItem'>;
+        }>,
 ): Readonly<GetCsrfTokenResult> {
     const rawCsrfToken: string | undefined =
-        (overrides.localStorage || globalThis.localStorage).getItem(
-            overrides.csrfHeaderName || AuthHeaderName.CsrfToken,
-        ) || undefined;
+        (options.localStorage || globalThis.localStorage).getItem(resolveCsrfHeaderName(options)) ||
+        undefined;
 
     return parseCsrfToken(rawCsrfToken);
 }
@@ -192,19 +217,18 @@ export function getCurrentCsrfToken(
  * @category Auth : Client
  */
 export function wipeCurrentCsrfToken(
-    overrides: PartialWithUndefined<{
-        /**
-         * Allows mocking or overriding the global `localStorage`.
-         *
-         * @default globalThis.localStorage
-         */
-        localStorage: Pick<Storage, 'removeItem'>;
-        /** Override the default CSRF token header name. */
-        csrfHeaderName: string;
-    }> = {},
+    options: Readonly<CsrfHeaderNameOption> &
+        PartialWithUndefined<{
+            /**
+             * Allows mocking or overriding the global `localStorage`.
+             *
+             * @default globalThis.localStorage
+             */
+            localStorage: Pick<Storage, 'removeItem'>;
+        }>,
 ) {
     authLog('auth-vir: wipeCurrentCsrfToken called', new Error().stack);
-    return (overrides.localStorage || globalThis.localStorage).removeItem(
-        overrides.csrfHeaderName || AuthHeaderName.CsrfToken,
+    return (options.localStorage || globalThis.localStorage).removeItem(
+        resolveCsrfHeaderName(options),
     );
 }

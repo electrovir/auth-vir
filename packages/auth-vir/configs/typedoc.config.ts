@@ -15,6 +15,7 @@ export const typeDocConfig: Partial<TypeDocOptions> = {
     intentionallyNotExported: [],
     defaultCategory: 'MISSING CATEGORY',
     categoryOrder: [
+        'Clients',
         'Auth : Host',
         'Auth : Client',
         'Keys',
