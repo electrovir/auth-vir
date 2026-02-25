@@ -57,7 +57,7 @@ describe('cookie', () => {
 
         assert.deepEquals(
             (
-                await extractCookieJwt(await generateAuthCookie(mockJwt, cookieParams), {
+                await extractCookieJwt((await generateAuthCookie(mockJwt, cookieParams)).cookie, {
                     ...mockJwtParams,
                     jwtKeys,
                 })
@@ -71,13 +71,13 @@ describe(generateAuthCookie.name, () => {
     it('generates a secure cookie by default', async () => {
         const {mockJwt, cookieParams} = await getCookieParams();
 
-        const cookie = await generateAuthCookie(mockJwt, cookieParams);
+        const {cookie} = await generateAuthCookie(mockJwt, cookieParams);
         assert.endsWith(cookie, '; Secure');
     });
     it('can generate an insecure cookie', async () => {
         const {mockJwt, cookieParams} = await getCookieParams();
 
-        const cookie = await generateAuthCookie(mockJwt, {
+        const {cookie} = await generateAuthCookie(mockJwt, {
             ...cookieParams,
             isDev: true,
         });
@@ -86,7 +86,7 @@ describe(generateAuthCookie.name, () => {
     it('can use a custom cookie name', async () => {
         const {mockJwt, cookieParams} = await getCookieParams();
 
-        const cookie = await generateAuthCookie(mockJwt, {
+        const {cookie} = await generateAuthCookie(mockJwt, {
             ...cookieParams,
             cookieName: 'my-name',
         });

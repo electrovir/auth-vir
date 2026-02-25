@@ -21,8 +21,12 @@ import {
     insecureExtractUserIdFromCookieAlone,
     type UserIdResult,
 } from '../auth.js';
-import {AuthCookieName, type CookieParams} from '../cookie.js';
-import {defaultAllowedClockSkew, type CsrfHeaderNameOption} from '../csrf-token.js';
+import {AuthCookieName, generateAuthCookie, type CookieParams} from '../cookie.js';
+import {
+    defaultAllowedClockSkew,
+    resolveCsrfHeaderName,
+    type CsrfHeaderNameOption,
+} from '../csrf-token.js';
 import {AuthHeaderName, mergeHeaderValues} from '../headers.js';
 import {generateNewJwtKeys, parseJwtKeys, type JwtKeys, type RawJwtKeys} from '../jwt/jwt-keys.js';
 import {type CreateJwtParams, type ParseJwtParams} from '../jwt/jwt.js';
@@ -308,11 +312,29 @@ export class BackendAuthClient<
         });
 
         if (isRefreshReady) {
-            return this.createLoginHeaders({
+            const isSignUpCookie = userIdResult.cookieName === AuthCookieName.SignUp;
+            const cookieParams = await this.getCookieParams({
+                isSignUpCookie,
                 requestHeaders,
-                userId: userIdResult.userId,
-                isSignUpCookie: userIdResult.cookieName === AuthCookieName.SignUp,
             });
+
+            const csrfHeaderName = resolveCsrfHeaderName(this.config.csrf);
+            const {cookie, expiration} = await generateAuthCookie(
+                {
+                    csrfToken: userIdResult.csrfToken,
+                    userId: userIdResult.userId,
+                    sessionStartedAt: userIdResult.sessionStartedAt || Date.now(),
+                },
+                cookieParams,
+            );
+
+            return {
+                'set-cookie': cookie,
+                [csrfHeaderName]: JSON.stringify({
+                    token: userIdResult.csrfToken,
+                    expiration,
+                }),
+            };
         } else {
             return undefined;
         }
@@ -588,6 +610,12 @@ export class BackendAuthClient<
 
         // eslint-disable-next-line @typescript-eslint/no-deprecated
         const insecureUser = await this.getInsecureUser(params);
+
+        if (insecureUser) {
+            authLog(
+                'WARNING: getInsecureOrSecureUser is falling back to insecure (CSRF-less) authentication. The request will be authenticated without CSRF validation.',
+            );
+        }
 
         return insecureUser ? {insecureUser} : {};
     }

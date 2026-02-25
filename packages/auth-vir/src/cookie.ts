@@ -1,6 +1,13 @@
 import {check} from '@augment-vir/assert';
-import {safeMatch, type PartialWithUndefined} from '@augment-vir/common';
-import {convertDuration, type AnyDuration} from 'date-vir';
+import {escapeStringForRegExp, safeMatch, type PartialWithUndefined} from '@augment-vir/common';
+import {
+    calculateRelativeDate,
+    convertDuration,
+    getNowInUtcTimezone,
+    type AnyDuration,
+    type FullDate,
+    type UtcTimezone,
+} from 'date-vir';
 import {type Primitive} from 'type-fest';
 import {parseUrl} from 'url-vir';
 import {type CreateJwtParams, type ParseJwtParams, type ParsedJwt} from './jwt/jwt.js';
@@ -54,6 +61,16 @@ export type CookieParams = {
 }>;
 
 /**
+ * Output from {@link generateAuthCookie}.
+ *
+ * @category Internal
+ */
+export type GenerateAuthCookieResult = {
+    cookie: string;
+    expiration: FullDate<UtcTimezone>;
+};
+
+/**
  * Generate a secure cookie that stores the user JWT data. Used in host (backend) code.
  *
  * @category Internal
@@ -61,19 +78,24 @@ export type CookieParams = {
 export async function generateAuthCookie(
     userJwtData: Readonly<JwtUserData>,
     cookieConfig: Readonly<CookieParams>,
-): Promise<string> {
-    return generateCookie({
-        [cookieConfig.cookieName || 'auth']: await createUserJwt(
-            userJwtData,
-            cookieConfig.jwtParams,
-        ),
-        Domain: parseUrl(cookieConfig.hostOrigin).hostname,
-        HttpOnly: true,
-        Path: '/',
-        SameSite: 'Strict',
-        'MAX-AGE': convertDuration(cookieConfig.cookieDuration, {seconds: true}).seconds,
-        Secure: !cookieConfig.isDev,
-    });
+): Promise<GenerateAuthCookieResult> {
+    const expiration = calculateRelativeDate(getNowInUtcTimezone(), cookieConfig.cookieDuration);
+
+    return {
+        cookie: generateCookie({
+            [cookieConfig.cookieName || 'auth']: await createUserJwt(
+                userJwtData,
+                cookieConfig.jwtParams,
+            ),
+            Domain: parseUrl(cookieConfig.hostOrigin).hostname,
+            HttpOnly: true,
+            Path: '/',
+            SameSite: 'Strict',
+            'MAX-AGE': convertDuration(cookieConfig.cookieDuration, {seconds: true}).seconds,
+            Secure: !cookieConfig.isDev,
+        }),
+        expiration,
+    };
 }
 
 /**
@@ -136,7 +158,7 @@ export async function extractCookieJwt(
     jwtParams: Readonly<ParseJwtParams>,
     cookieName: string = AuthCookieName.Auth,
 ): Promise<undefined | ParsedJwt<JwtUserData>> {
-    const cookieRegExp = new RegExp(`${cookieName}=[^;]+(?:;|$)`);
+    const cookieRegExp = new RegExp(`${escapeStringForRegExp(cookieName)}=[^;]+(?:;|$)`);
 
     const [cookieValue] = safeMatch(rawCookie, cookieRegExp);
 
