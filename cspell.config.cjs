@@ -8,6 +8,5 @@ module.exports = {
     ],
     words: [
         ...baseConfig.words,
-        'cuid',
     ],
 };
