@@ -9,6 +9,11 @@ const baseConfig = defineConfig({
                 'src/index\\.ts$',
             ],
         },
+        'not-to-dev-dep': {
+            from: [
+                'src/generated/',
+            ],
+        },
     },
     omitRules: [
         // enter rule names here to omit

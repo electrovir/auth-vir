@@ -9,5 +9,4 @@ export * from './headers.js';
 export * from './jwt/jwt-keys.js';
 export * from './jwt/jwt.js';
 export * from './jwt/user-jwt.js';
-export * from './log.js';
 export * from './mock-local-storage.js';

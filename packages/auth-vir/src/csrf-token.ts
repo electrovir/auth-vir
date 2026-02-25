@@ -13,7 +13,6 @@ import {
 } from 'date-vir';
 import {defineShape, parseJsonWithShape} from 'object-shape-tester';
 import {type RequireExactlyOne} from 'type-fest';
-import {authLog} from './log.js';
 
 /**
  * Shape definition for {@link CsrfToken}.
@@ -266,7 +265,6 @@ export function wipeCurrentCsrfToken(
             localStorage: Pick<Storage, 'removeItem'>;
         }>,
 ) {
-    authLog('auth-vir: wipeCurrentCsrfToken called', new Error().stack);
     return (options.localStorage || globalThis.localStorage).removeItem(
         resolveCsrfHeaderName(options),
     );

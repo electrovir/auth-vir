@@ -18,7 +18,6 @@ import {
 } from './csrf-token.js';
 import {type ParseJwtParams} from './jwt/jwt.js';
 import {type JwtUserData} from './jwt/user-jwt.js';
-import {authLog} from './log.js';
 
 /**
  * All possible headers container types supported by {@link extractUserIdFromRequestHeaders}.
@@ -54,6 +53,8 @@ export type UserIdResult<UserId extends string | number> = {
     /** When the JWT was issued (`iat` claim). */
     jwtIssuedAt: FullDate<UtcTimezone>;
     cookieName: string;
+    /** The CSRF token embedded in the JWT. */
+    csrfToken: string;
     /**
      * Unix timestamp (in milliseconds) when the session was originally started. Used to enforce max
      * session duration.
@@ -72,10 +73,6 @@ function readCsrfTokenHeader(
     }
 
     const token = parseCsrfToken(rawCsrfToken).csrfToken?.token || rawCsrfToken;
-
-    if (!token) {
-        authLog('auth-vir: CSRF token not found.');
-    }
 
     return token;
 }
@@ -99,30 +96,12 @@ export async function extractUserIdFromRequestHeaders<UserId extends string | nu
         const cookie = readHeader(headers, 'cookie');
 
         if (!cookie || !csrfToken) {
-            authLog(
-                'auth-vir: extractUserIdFromRequestHeaders failed - missing cookie or CSRF token',
-                {
-                    hasCookie: !!cookie,
-                    hasCsrfToken: !!csrfToken,
-                    cookieName,
-                },
-            );
             return undefined;
         }
 
         const jwt = await extractCookieJwt(cookie, jwtParams, cookieName);
 
         if (!jwt || jwt.data.csrfToken !== csrfToken) {
-            if (cookieName === AuthCookieName.Auth) {
-                authLog(
-                    'auth-vir: extractUserIdFromRequestHeaders failed - JWT invalid or CSRF mismatch',
-                    {
-                        hasJwt: !!jwt,
-                        csrfMatch: jwt ? jwt.data.csrfToken === csrfToken : false,
-                        cookieName,
-                    },
-                );
-            }
             return undefined;
         }
 
@@ -131,10 +110,10 @@ export async function extractUserIdFromRequestHeaders<UserId extends string | nu
             jwtExpiration: jwt.jwtExpiration,
             jwtIssuedAt: jwt.jwtIssuedAt,
             cookieName,
+            csrfToken: jwt.data.csrfToken,
             sessionStartedAt: jwt.data.sessionStartedAt,
         };
-    } catch (error) {
-        authLog('auth-vir: extractUserIdFromRequestHeaders error', {error, cookieName});
+    } catch {
         return undefined;
     }
 }
@@ -156,16 +135,12 @@ export async function insecureExtractUserIdFromCookieAlone<UserId extends string
         const cookie = readHeader(headers, 'cookie');
 
         if (!cookie) {
-            authLog('auth-vir: insecureExtractUserIdFromCookieAlone failed - no cookie');
             return undefined;
         }
 
         const jwt = await extractCookieJwt(cookie, jwtParams, cookieName);
 
         if (!jwt) {
-            authLog(
-                'auth-vir: insecureExtractUserIdFromCookieAlone failed - JWT extraction failed',
-            );
             return undefined;
         }
 
@@ -174,10 +149,10 @@ export async function insecureExtractUserIdFromCookieAlone<UserId extends string
             jwtExpiration: jwt.jwtExpiration,
             jwtIssuedAt: jwt.jwtIssuedAt,
             cookieName,
+            csrfToken: jwt.data.csrfToken,
             sessionStartedAt: jwt.data.sessionStartedAt,
         };
-    } catch (error) {
-        authLog('auth-vir: insecureExtractUserIdFromCookieAlone error', {error});
+    } catch {
         return undefined;
     }
 }
@@ -201,16 +176,21 @@ export async function generateSuccessfulLoginHeaders(
     const csrfToken = generateCsrfToken(cookieConfig.cookieDuration);
     const csrfHeaderName = resolveCsrfHeaderName(csrfHeaderNameOption);
 
+    const {cookie, expiration} = await generateAuthCookie(
+        {
+            csrfToken: csrfToken.token,
+            userId,
+            sessionStartedAt: sessionStartedAt ?? Date.now(),
+        },
+        cookieConfig,
+    );
+
     return {
-        'set-cookie': await generateAuthCookie(
-            {
-                csrfToken: csrfToken.token,
-                userId,
-                sessionStartedAt: sessionStartedAt ?? Date.now(),
-            },
-            cookieConfig,
-        ),
-        [csrfHeaderName]: JSON.stringify(csrfToken),
+        'set-cookie': cookie,
+        [csrfHeaderName]: JSON.stringify({
+            token: csrfToken.token,
+            expiration,
+        }),
     };
 }
 
@@ -224,13 +204,6 @@ export function generateLogoutHeaders(
     cookieConfig: Readonly<Pick<CookieParams, 'cookieName' | 'hostOrigin' | 'isDev'>>,
     csrfHeaderNameOption: Readonly<CsrfHeaderNameOption>,
 ): Record<string, string> {
-    authLog(
-        'auth-vir: LOGOUT - generateLogoutHeaders called',
-        {
-            cookieName: cookieConfig.cookieName,
-        },
-        new Error().stack,
-    );
     const csrfHeaderName = resolveCsrfHeaderName(csrfHeaderNameOption);
 
     return {
@@ -261,7 +234,6 @@ export function handleAuthResponse(
         }>,
 ) {
     if (!response.ok) {
-        authLog('auth-vir: LOGOUT - handleAuthResponse: response not ok, wiping CSRF token');
         wipeCurrentCsrfToken(options);
         return;
     }
@@ -269,11 +241,9 @@ export function handleAuthResponse(
     const {csrfToken} = extractCsrfTokenHeader(response, options);
 
     if (!csrfToken) {
-        authLog('auth-vir: LOGOUT - handleAuthResponse: no CSRF token in response, wiping');
         wipeCurrentCsrfToken(options);
         throw new Error('Did not receive any CSRF token.');
     }
 
-    authLog('auth-vir: handleAuthResponse - successfully stored CSRF token');
     storeCsrfToken(csrfToken, options);
 }

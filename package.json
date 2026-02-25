@@ -1,6 +1,6 @@
 {
     "name": "@evir/auth-vir-mono-root",
-    "version": "2.7.2",
+    "version": "3.0.0",
     "private": true,
     "homepage": "https://github.com/electrovir/auth-vir",
     "bugs": {
@@ -41,13 +41,13 @@
         "@eslint/js": "^9.39.2",
         "@stylistic/eslint-plugin": "^5.9.0",
         "@stylistic/eslint-plugin-ts": "^4.4.1",
-        "@typescript-eslint/eslint-plugin": "^8.54.0",
+        "@typescript-eslint/eslint-plugin": "^8.56.1",
         "cspell": "^9.7.0",
         "dependency-cruiser": "^17.3.8",
         "esbuild": "^0.27.3",
         "eslint": "^9.39.2",
         "eslint-config-prettier": "^10.1.8",
-        "eslint-plugin-jsdoc": "^62.5.0",
+        "eslint-plugin-jsdoc": "^62.7.0",
         "eslint-plugin-monorepo-cop": "^1.0.2",
         "eslint-plugin-playwright": "^2.7.1",
         "eslint-plugin-prettier": "^5.5.5",
@@ -68,7 +68,7 @@
         "prisma": "^6.19.2",
         "prisma-vir": "^2.3.3",
         "runstorm": "^1.0.0",
-        "typescript-eslint": "^8.54.0",
+        "typescript-eslint": "^8.56.1",
         "virmator": "^14.6.1"
     },
     "engines": {
