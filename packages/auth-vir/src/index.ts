@@ -1,5 +1,6 @@
 export * from './auth-client/backend-auth.client.js';
 export * from './auth-client/frontend-auth.client.js';
+export * from './auth-client/is-session-refresh-ready.js';
 export * from './auth.js';
 export * from './cookie.js';
 export * from './csrf-token.js';

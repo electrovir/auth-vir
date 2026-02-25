@@ -51,6 +51,8 @@ function readHeader(headers: HeaderContainer, headerName: string): string | unde
 export type UserIdResult<UserId extends string | number> = {
     userId: UserId;
     jwtExpiration: FullDate<UtcTimezone>;
+    /** When the JWT was issued (`iat` claim). */
+    jwtIssuedAt: FullDate<UtcTimezone>;
     cookieName: string;
     /**
      * Unix timestamp (in milliseconds) when the session was originally started. Used to enforce max
@@ -127,6 +129,7 @@ export async function extractUserIdFromRequestHeaders<UserId extends string | nu
         return {
             userId: jwt.data.userId as UserId,
             jwtExpiration: jwt.jwtExpiration,
+            jwtIssuedAt: jwt.jwtIssuedAt,
             cookieName,
             sessionStartedAt: jwt.data.sessionStartedAt,
         };
@@ -169,6 +172,7 @@ export async function insecureExtractUserIdFromCookieAlone<UserId extends string
         return {
             userId: jwt.data.userId as UserId,
             jwtExpiration: jwt.jwtExpiration,
+            jwtIssuedAt: jwt.jwtIssuedAt,
             cookieName,
             sessionStartedAt: jwt.data.sessionStartedAt,
         };

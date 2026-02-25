@@ -62,7 +62,7 @@ export async function parseUserJwt(
     encryptedJwt: string,
     params: Readonly<ParseJwtParams>,
 ): Promise<ParsedJwt<JwtUserData> | undefined> {
-    const {data, jwtExpiration} = await parseJwt(encryptedJwt, params);
+    const {data, jwtExpiration, jwtIssuedAt} = await parseJwt(encryptedJwt, params);
 
     if (!checkValidShape(data, userJwtDataShape)) {
         throw new TypeError('Verified jwt has wrong data.');
@@ -71,5 +71,6 @@ export async function parseUserJwt(
     return {
         data,
         jwtExpiration,
+        jwtIssuedAt,
     };
 }

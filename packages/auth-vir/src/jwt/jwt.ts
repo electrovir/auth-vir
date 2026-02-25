@@ -158,6 +158,8 @@ export type ParseJwtParams = Readonly<Pick<CreateJwtParams, 'issuer' | 'audience
 export type ParsedJwt<JwtData extends AnyObject> = {
     data: JwtData;
     jwtExpiration: FullDate<UtcTimezone>;
+    /** When the JWT was issued (`iat` claim). */
+    jwtIssuedAt: FullDate<UtcTimezone>;
 };
 
 /**
@@ -207,15 +209,18 @@ export async function parseJwt<JwtData extends AnyObject = AnyObject>(
         throw new Error('Invalid signing protected header.');
     }
 
+    const issuedAtSeconds = assertWrap.isDefined(verifiedJwt.payload.iat, 'JWT has no issued at.');
     const expirationSeconds = assertWrap.isDefined(
         verifiedJwt.payload.exp,
         'JWT has no expiration.',
     );
 
+    const jwtIssuedAt: FullDate<UtcTimezone> = parseJwtTimestamp(issuedAtSeconds);
     const jwtExpiration: FullDate<UtcTimezone> = parseJwtTimestamp(expirationSeconds);
 
     return {
         data: data as JwtData,
         jwtExpiration,
+        jwtIssuedAt,
     };
 }

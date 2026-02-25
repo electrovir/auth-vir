@@ -10,7 +10,6 @@ import {
     createUtcFullDate,
     getNowInUtcTimezone,
     isDateAfter,
-    negateDuration,
     type AnyDuration,
 } from 'date-vir';
 import {type IncomingHttpHeaders, type OutgoingHttpHeaders} from 'node:http';
@@ -28,6 +27,7 @@ import {AuthHeaderName, mergeHeaderValues} from '../headers.js';
 import {generateNewJwtKeys, parseJwtKeys, type JwtKeys, type RawJwtKeys} from '../jwt/jwt-keys.js';
 import {type CreateJwtParams, type ParseJwtParams} from '../jwt/jwt.js';
 import {authLog} from '../log.js';
+import {isSessionRefreshReady} from './is-session-refresh-ready.js';
 
 /**
  * Output from `BackendAuthClient.getSecureUser()`.
@@ -145,7 +145,7 @@ export type BackendAuthClientConfig<
          *
          * @default {minutes: 2}
          */
-        sessionRefreshTimeout: Readonly<AnyDuration>;
+        sessionRefreshStartTime: Readonly<AnyDuration>;
         /**
          * The maximum duration a session can last, regardless of activity. After this time, the
          * user will be logged out even if they are actively using the application.
@@ -167,7 +167,7 @@ const defaultSessionIdleTimeout: Readonly<AnyDuration> = {
     minutes: 20,
 };
 
-const defaultSessionRefreshTimeout: Readonly<AnyDuration> = {
+const defaultSessionRefreshStartTime: Readonly<AnyDuration> = {
     minutes: 2,
 };
 
@@ -299,29 +299,12 @@ export class BackendAuthClient<
             }
         }
 
-        /**
-         * This check performs the following: the current time + the refresh threshold > JWT
-         * expiration.
-         *
-         * Visually, this check looks like this:
-         *
-         *      X   C=======Y=======R   Z
-         *
-         * - C = current time
-         * - R = C + refresh threshold
-         * - `=` = the time frame in which {@link isRefreshReady} = true.
-         * - X = JWT expiration that has already expired (rejected by {@link isExpiredAlready}.
-         * - Y = JWT expiration within the refresh threshold: {@link isRefreshReady} = true.
-         * - Z = JWT expiration outside the refresh threshold: {@link isRefreshReady} = false.
-         */
-        const sessionRefreshTimeout =
-            this.config.sessionRefreshTimeout || defaultSessionRefreshTimeout;
-        const isRefreshReady = isDateAfter({
-            fullDate: now,
-            relativeTo: calculateRelativeDate(
-                userIdResult.jwtExpiration,
-                negateDuration(sessionRefreshTimeout),
-            ),
+        const sessionRefreshStartTime =
+            this.config.sessionRefreshStartTime || defaultSessionRefreshStartTime;
+        const isRefreshReady = isSessionRefreshReady({
+            now,
+            jwtIssuedAt: userIdResult.jwtIssuedAt,
+            sessionRefreshStartTime,
         });
 
         if (isRefreshReady) {

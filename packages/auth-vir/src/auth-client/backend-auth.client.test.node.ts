@@ -174,6 +174,12 @@ describe(BackendAuthClient.name, () => {
                 userSessionIdleTimeout: {
                     seconds: 5,
                 },
+                sessionRefreshStartTime: {
+                    seconds: 0,
+                },
+                allowedClockSkew: {
+                    seconds: 0,
+                },
             },
         });
 

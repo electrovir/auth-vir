@@ -209,6 +209,7 @@ describe(parseJwt.name, () => {
                 await parseJwt(jwt, {
                     ...mockJwtParams,
                     jwtKeys,
+                    allowedClockSkew: {seconds: 0},
                 }),
             {
                 matchMessage: '"exp" claim timestamp check failed',
