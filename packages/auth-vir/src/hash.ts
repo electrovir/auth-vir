@@ -1,3 +1,4 @@
+import {assertWrap} from '@augment-vir/assert';
 import {
     type AnyObject,
     mergeDefinedProperties,
@@ -12,8 +13,8 @@ import {argon2id, argon2Verify, type IArgon2Options} from 'hash-wasm';
  */
 export const defaultHashOptions: HashPasswordOptions = {
     hashLength: 32,
-    iterations: 256,
-    memorySize: 512,
+    iterations: 2,
+    memorySize: 19_456,
     parallelism: 1,
 };
 
@@ -41,13 +42,15 @@ export async function hashPassword(
 ): Promise<string> {
     const salt = globalThis.crypto.getRandomValues(new Uint8Array(16));
 
-    return await argon2id(
+    const hash = await argon2id(
         mergeDefinedProperties<AnyObject>(defaultHashOptions, options, {
             outputType: 'encoded',
             password: password.normalize(),
             salt,
         }) as IArgon2Options,
     );
+
+    return assertWrap.isTruthy(hash);
 }
 
 /**
@@ -76,6 +79,6 @@ export async function doesPasswordMatchHash({
 }): Promise<boolean> {
     return await argon2Verify({
         hash,
-        password,
+        password: password.normalize(),
     });
 }
