@@ -77,6 +77,7 @@ export type BackendAuthClientConfig<
              * their user identity. Otherwise, this is `undefined`.
              */
             assumingUser: AssumedUserParams | undefined;
+            requestHeaders: Readonly<IncomingHttpHeaders>;
         }) => MaybePromise<DatabaseUser | undefined | null>;
         /**
          * Get JWT keys produced by {@link generateNewJwtKeys}. Make sure that each time this is
@@ -228,10 +229,12 @@ export class BackendAuthClient<
         isSignUpCookie,
         userId,
         assumingUser,
+        requestHeaders,
     }: {
         userId: UserId | undefined;
         assumingUser: AssumedUserParams | undefined;
         isSignUpCookie: boolean;
+        requestHeaders: IncomingHttpHeaders;
     }): Promise<undefined | DatabaseUser> {
         if (!userId) {
             return undefined;
@@ -241,6 +244,7 @@ export class BackendAuthClient<
             assumingUser,
             userId,
             isSignUpCookie,
+            requestHeaders,
         });
 
         if (!authenticatedUser) {
@@ -329,18 +333,18 @@ export class BackendAuthClient<
 
     /** Reads the user's assumed user headers and, if configured, gets the assumed user. */
     protected async getAssumedUser({
-        headers,
+        requestHeaders,
         user,
     }: {
         user: DatabaseUser;
-        headers: IncomingHttpHeaders;
+        requestHeaders: IncomingHttpHeaders;
     }): Promise<DatabaseUser | undefined> {
         if (!this.config.assumeUser || !(await this.config.assumeUser.canAssumeUser(user))) {
             return undefined;
         }
 
         const assumedUserHeader: string | undefined = ensureArray(
-            headers[this.config.assumedUserHeaderName || AuthHeaderName.AssumedUser],
+            requestHeaders[this.config.assumedUserHeaderName || AuthHeaderName.AssumedUser],
         )[0];
 
         if (!assumedUserHeader) {
@@ -358,6 +362,7 @@ export class BackendAuthClient<
             isSignUpCookie: false,
             userId: parsedAssumedUserData.userId,
             assumingUser: parsedAssumedUserData.assumedUserParams,
+            requestHeaders,
         });
 
         return assumedUser;
@@ -392,6 +397,7 @@ export class BackendAuthClient<
             userId: userIdResult.userId,
             assumingUser: undefined,
             isSignUpCookie,
+            requestHeaders,
         });
 
         if (!user) {
@@ -399,7 +405,7 @@ export class BackendAuthClient<
         }
 
         const assumedUser = await this.getAssumedUser({
-            headers: requestHeaders,
+            requestHeaders,
             user,
         });
 
@@ -619,6 +625,7 @@ export class BackendAuthClient<
             isSignUpCookie: false,
             userId: userIdResult.userId,
             assumingUser: undefined,
+            requestHeaders,
         });
 
         if (!user) {
