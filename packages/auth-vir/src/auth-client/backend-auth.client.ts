@@ -91,6 +91,12 @@ export type BackendAuthClientConfig<
          */
         isDev: boolean;
     } & PartialWithUndefined<{
+        /** If this returns true, logging will be enabled while handling the relevant session. */
+        enableLogging(params: {
+            user: DatabaseUser | undefined;
+            userId: UserId | undefined;
+            assumedUserParams: AssumedUserParams | undefined;
+        }): boolean;
         /**
          * Overwrite the header name used for tracking is an admin is assuming the identity of
          * another user.
@@ -103,6 +109,8 @@ export type BackendAuthClientConfig<
         generateServiceOrigin(params: {
             requestHeaders: Readonly<IncomingHttpHeaders>;
         }): MaybePromise<undefined | string>;
+        /** If provided, logs will be sent to this method. */
+        log?: (message: string, extraData: AnyObject) => void;
         /**
          * Set this to allow specific users (determined by `canAssumeUser`) to assume the identity
          * of other users. This should only be used for admins so that they can troubleshoot user
@@ -197,6 +205,30 @@ export class BackendAuthClient<
         protected readonly config: BackendAuthClientConfig<DatabaseUser, UserId, AssumedUserParams>,
     ) {}
 
+    /** Conditionally logs a message if logging is enabled for the given user context. */
+    protected logForUser(
+        params: {
+            user: DatabaseUser | undefined;
+            userId: UserId | undefined;
+            assumedUserParams: AssumedUserParams | undefined;
+        },
+        message: string,
+        extra?: Record<string, unknown>,
+    ): void {
+        if (this.config.enableLogging?.(params)) {
+            const extraData = {
+                userId: params.userId,
+                ...extra,
+            };
+
+            if (this.config.log) {
+                this.config.log(message, extraData);
+            } else {
+                console.info(`[auth-vir] ${message}`, extraData);
+            }
+        }
+    }
+
     /** Get all the parameters used for cookie generation. */
     protected async getCookieParams({
         isSignUpCookie,
@@ -212,7 +244,9 @@ export class BackendAuthClient<
         requestHeaders: Readonly<IncomingHttpHeaders> | undefined;
     }): Promise<Readonly<CookieParams>> {
         const serviceOrigin = requestHeaders
-            ? await this.config.generateServiceOrigin?.({requestHeaders})
+            ? await this.config.generateServiceOrigin?.({
+                  requestHeaders,
+              })
             : undefined;
 
         return {
@@ -248,6 +282,17 @@ export class BackendAuthClient<
         });
 
         if (!authenticatedUser) {
+            this.logForUser(
+                {
+                    user: undefined,
+                    userId,
+                    assumedUserParams: assumingUser,
+                },
+                'getUserFromDatabase returned no user',
+                {
+                    isSignUpCookie,
+                },
+            );
             return undefined;
         }
 
@@ -273,6 +318,18 @@ export class BackendAuthClient<
         });
 
         if (isExpiredAlready) {
+            this.logForUser(
+                {
+                    user: undefined,
+                    userId: userIdResult.userId,
+                    assumedUserParams: undefined,
+                },
+                'Session refresh denied: JWT already expired (even with clock skew tolerance)',
+                {
+                    jwtExpiration: userIdResult.jwtExpiration,
+                    now: JSON.stringify(now),
+                },
+            );
             return undefined;
         }
 
@@ -290,6 +347,19 @@ export class BackendAuthClient<
             });
 
             if (isSessionExpired) {
+                this.logForUser(
+                    {
+                        user: undefined,
+                        userId: userIdResult.userId,
+                        assumedUserParams: undefined,
+                    },
+                    'Session refresh denied: max session duration exceeded',
+                    {
+                        sessionStartedAt: userIdResult.sessionStartedAt,
+                        maxSessionEndDate: JSON.stringify(maxSessionEndDate),
+                        now: JSON.stringify(now),
+                    },
+                );
                 return undefined;
             }
         }
@@ -327,6 +397,18 @@ export class BackendAuthClient<
                 }),
             };
         } else {
+            this.logForUser(
+                {
+                    user: undefined,
+                    userId: userIdResult.userId,
+                    assumedUserParams: undefined,
+                },
+                'Session refresh skipped: not yet ready for refresh',
+                {
+                    jwtIssuedAt: userIdResult.jwtIssuedAt,
+                    sessionRefreshStartTime,
+                },
+            );
             return undefined;
         }
     }
@@ -390,6 +472,17 @@ export class BackendAuthClient<
             isSignUpCookie ? AuthCookieName.SignUp : AuthCookieName.Auth,
         );
         if (!userIdResult) {
+            this.logForUser(
+                {
+                    user: undefined,
+                    userId: undefined,
+                    assumedUserParams: undefined,
+                },
+                'getSecureUser: failed to extract user ID from request headers (invalid JWT, missing cookie, or CSRF mismatch)',
+                {
+                    isSignUpCookie,
+                },
+            );
             return undefined;
         }
 
@@ -401,6 +494,17 @@ export class BackendAuthClient<
         });
 
         if (!user) {
+            this.logForUser(
+                {
+                    user: undefined,
+                    userId: userIdResult.userId,
+                    assumedUserParams: undefined,
+                },
+                'getSecureUser: user not found in database',
+                {
+                    isSignUpCookie,
+                },
+            );
             return undefined;
         }
 
@@ -435,7 +539,9 @@ export class BackendAuthClient<
         const parsedKeys = cachedParsedKeys || (await parseJwtKeys(rawJwtKeys));
 
         if (!cachedParsedKeys) {
-            this.cachedParsedJwtKeys = {[cacheKey]: parsedKeys};
+            this.cachedParsedJwtKeys = {
+                [cacheKey]: parsedKeys,
+            };
         }
         return {
             jwtKeys: parsedKeys,
@@ -584,13 +690,19 @@ export class BackendAuthClient<
         const secureUser = await this.getSecureUser(params);
 
         if (secureUser) {
-            return {secureUser};
+            return {
+                secureUser,
+            };
         }
 
         // eslint-disable-next-line @typescript-eslint/no-deprecated
         const insecureUser = await this.getInsecureUser(params);
 
-        return insecureUser ? {insecureUser} : {};
+        return insecureUser
+            ? {
+                  insecureUser,
+              }
+            : {};
     }
 
     /**
@@ -618,6 +730,14 @@ export class BackendAuthClient<
         );
 
         if (!userIdResult) {
+            this.logForUser(
+                {
+                    user: undefined,
+                    userId: undefined,
+                    assumedUserParams: undefined,
+                },
+                'getInsecureUser: failed to extract user ID from cookie (invalid JWT or missing cookie)',
+            );
             return undefined;
         }
 
@@ -629,6 +749,14 @@ export class BackendAuthClient<
         });
 
         if (!user) {
+            this.logForUser(
+                {
+                    user: undefined,
+                    userId: userIdResult.userId,
+                    assumedUserParams: undefined,
+                },
+                'getInsecureUser: user not found in database',
+            );
             return undefined;
         }
 
