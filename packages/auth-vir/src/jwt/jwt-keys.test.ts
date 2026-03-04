@@ -4,7 +4,17 @@ import {parseJwtKeys} from './jwt-keys.js';
 
 describe(parseJwtKeys.name, () => {
     it('errors on empty raw keys', async () => {
-        await assert.throws(() => parseJwtKeys({encryptionKey: '', signingKey: 'abc'}));
-        await assert.throws(() => parseJwtKeys({encryptionKey: 'abc', signingKey: ''}));
+        await assert.throws(() =>
+            parseJwtKeys({
+                encryptionKey: '',
+                signingKey: 'abc',
+            }),
+        );
+        await assert.throws(() =>
+            parseJwtKeys({
+                encryptionKey: 'abc',
+                signingKey: '',
+            }),
+        );
     });
 });

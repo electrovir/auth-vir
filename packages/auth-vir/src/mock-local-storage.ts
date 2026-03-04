@@ -59,7 +59,10 @@ export function createMockLocalStorage(
             delete store[key];
         },
         setItem(key, value) {
-            accessRecord.setItem.push({key, value});
+            accessRecord.setItem.push({
+                key,
+                value,
+            });
             store[key] = value;
         },
     };

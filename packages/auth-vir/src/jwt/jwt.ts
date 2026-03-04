@@ -16,8 +16,13 @@ import {EncryptJWT, jwtDecrypt, jwtVerify, SignJWT} from 'jose';
 import {defaultAllowedClockSkew} from '../csrf-token.js';
 import {type JwtKeys} from './jwt-keys.js';
 
-const encryptionProtectedHeader = {alg: 'dir', enc: 'A256GCM'};
-const signingProtectedHeader = {alg: 'HS512'};
+const encryptionProtectedHeader = {
+    alg: 'dir',
+    enc: 'A256GCM',
+};
+const signingProtectedHeader = {
+    alg: 'HS512',
+};
 
 /**
  * Params for {@link createJwt}.
@@ -110,7 +115,9 @@ export async function createJwt<JwtData extends AnyObject = AnyObject>(
     data: JwtData,
     params: Readonly<CreateJwtParams>,
 ): Promise<string> {
-    const rawJwt = new SignJWT({data})
+    const rawJwt = new SignJWT({
+        data,
+    })
         .setProtectedHeader(signingProtectedHeader)
         .setIssuedAt(
             params.issuedAt
@@ -129,7 +136,9 @@ export async function createJwt<JwtData extends AnyObject = AnyObject>(
 
     const signedJwt = await rawJwt.sign(params.jwtKeys.signingKey);
 
-    return await new EncryptJWT({jwt: signedJwt})
+    return await new EncryptJWT({
+        jwt: signedJwt,
+    })
         .setProtectedHeader(encryptionProtectedHeader)
         .encrypt(params.jwtKeys.encryptionKey);
 }
@@ -182,7 +191,9 @@ export async function parseJwt<JwtData extends AnyObject = AnyObject>(
 
     const clockToleranceSeconds = convertDuration(
         params.allowedClockSkew || defaultAllowedClockSkew,
-        {seconds: true},
+        {
+            seconds: true,
+        },
     ).seconds;
 
     const verifiedJwt = await jwtVerify(decryptedJwt.payload.jwt, params.jwtKeys.signingKey, {

@@ -26,7 +26,9 @@ import {
 } from 'vira';
 import {demoService, type DemoService} from '../../demo-service-definition.js';
 
-const demoCsrfOption: CsrfHeaderNameOption = {csrfHeaderPrefix: 'demo'};
+const demoCsrfOption: CsrfHeaderNameOption = {
+    csrfHeaderPrefix: 'demo',
+};
 const demoCsrfHeaderName = resolveCsrfHeaderName(demoCsrfOption);
 
 function setupAuthState() {
@@ -142,7 +144,9 @@ export const DemoApp = defineElement()({
 
         return {
             authenticatedUser: asyncUser,
-            api: asyncProp({defaultValue: apiPromise}),
+            api: asyncProp({
+                defaultValue: apiPromise,
+            }),
             passwordInput: '',
             usernameInput: '',
             status: undefined as undefined | LoginStatus | Error,
@@ -222,7 +226,9 @@ export const DemoApp = defineElement()({
                                 value: state.usernameInput,
                             })}
                                 ${listen(ViraInput.events.valueChange, (event) => {
-                                    updateState({usernameInput: event.detail});
+                                    updateState({
+                                        usernameInput: event.detail,
+                                    });
                                 })}
                             ></${ViraInput}>
                         </td>
@@ -235,7 +241,9 @@ export const DemoApp = defineElement()({
                                 type: ViraInputType.Password,
                             })}
                                 ${listen(ViraInput.events.valueChange, (event) => {
-                                    updateState({passwordInput: event.detail});
+                                    updateState({
+                                        passwordInput: event.detail,
+                                    });
                                 })}
                             ></${ViraInput}>
                         </td>
@@ -294,7 +302,9 @@ export const DemoApp = defineElement()({
                             </tr>
                         </tbody>
                     </table>
-                    <${ViraButton.assign({text: 'Logout'})}
+                    <${ViraButton.assign({
+                        text: 'Logout',
+                    })}
                         ${listen('click', () => {
                             state.authenticatedUser.setValue(undefined);
                             wipeCurrentCsrfToken(demoCsrfOption);

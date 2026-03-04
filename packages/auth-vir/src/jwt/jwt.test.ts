@@ -55,11 +55,17 @@ describe(parseJwt.name, () => {
                 signingKey: overriddenSigningKey,
             };
 
-            const mockData = {some: 'data'};
+            const mockData = {
+                some: 'data',
+            };
 
             const jwt = await new EncryptJWT({
-                jwt: await new SignJWT({data: mockData})
-                    .setProtectedHeader({alg: 'HS384'})
+                jwt: await new SignJWT({
+                    data: mockData,
+                })
+                    .setProtectedHeader({
+                        alg: 'HS384',
+                    })
                     .setIssuedAt()
                     .setIssuer(mockJwtParams.issuer)
                     .setAudience(mockJwtParams.audience)
@@ -70,7 +76,10 @@ describe(parseJwt.name, () => {
                     )
                     .sign(jwtKeys.signingKey),
             })
-                .setProtectedHeader({alg: 'dir', enc: 'A256GCM'})
+                .setProtectedHeader({
+                    alg: 'dir',
+                    enc: 'A256GCM',
+                })
                 .encrypt(jwtKeys.encryptionKey);
 
             await assert.throws(
@@ -90,11 +99,17 @@ describe(parseJwt.name, () => {
     });
     it('fails if the encryption protected header does not match', async () => {
         const jwtKeys = await parseJwtKeys(await generateNewJwtKeys());
-        const mockData = {some: 'data'};
+        const mockData = {
+            some: 'data',
+        };
 
         const jwt = await new EncryptJWT({
-            jwt: await new SignJWT({data: mockData})
-                .setProtectedHeader({alg: 'HS512'})
+            jwt: await new SignJWT({
+                data: mockData,
+            })
+                .setProtectedHeader({
+                    alg: 'HS512',
+                })
                 .setIssuedAt()
                 .setIssuer(mockJwtParams.issuer)
                 .setAudience(mockJwtParams.audience)
@@ -105,7 +120,10 @@ describe(parseJwt.name, () => {
                 )
                 .sign(jwtKeys.signingKey),
         })
-            .setProtectedHeader({alg: 'dir', enc: 'A128CBC-HS256'})
+            .setProtectedHeader({
+                alg: 'dir',
+                enc: 'A128CBC-HS256',
+            })
             .encrypt(jwtKeys.encryptionKey);
 
         await assert.throws(
@@ -125,7 +143,10 @@ describe(parseJwt.name, () => {
         const jwt = await new EncryptJWT({
             jwt: 42,
         })
-            .setProtectedHeader({alg: 'dir', enc: 'A256GCM'})
+            .setProtectedHeader({
+                alg: 'dir',
+                enc: 'A256GCM',
+            })
             .encrypt(jwtKeys.encryptionKey);
 
         await assert.throws(
@@ -175,7 +196,9 @@ describe(parseJwt.name, () => {
                     await createJwt(mockData, {
                         ...mockJwtParams,
                         jwtKeys,
-                        issuedAt: calculateRelativeDate(getNowInUtcTimezone(), {days: 10}),
+                        issuedAt: calculateRelativeDate(getNowInUtcTimezone(), {
+                            days: 10,
+                        }),
                     }),
                     {
                         ...mockJwtParams,
@@ -202,14 +225,18 @@ describe(parseJwt.name, () => {
             },
         });
 
-        await wait({seconds: 2});
+        await wait({
+            seconds: 2,
+        });
 
         await assert.throws(
             async () =>
                 await parseJwt(jwt, {
                     ...mockJwtParams,
                     jwtKeys,
-                    allowedClockSkew: {seconds: 0},
+                    allowedClockSkew: {
+                        seconds: 0,
+                    },
                 }),
             {
                 matchMessage: '"exp" claim timestamp check failed',
@@ -229,7 +256,9 @@ describe(parseJwt.name, () => {
                     await createJwt(mockData, {
                         ...mockJwtParams,
                         jwtKeys,
-                        notValidUntil: calculateRelativeDate(getNowInUtcTimezone(), {days: 10}),
+                        notValidUntil: calculateRelativeDate(getNowInUtcTimezone(), {
+                            days: 10,
+                        }),
                     }),
                     {
                         ...mockJwtParams,

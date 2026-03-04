@@ -7,7 +7,9 @@ import {
 
 describe(createMockLocalStorage.name, () => {
     it('removes an item', () => {
-        const {accessRecord, localStorage, store} = createMockLocalStorage({key: 'value'});
+        const {accessRecord, localStorage, store} = createMockLocalStorage({
+            key: 'value',
+        });
 
         assert.deepEquals(accessRecord, createEmptyMockLocalStorageAccessRecord());
         assert.hasKey(store, 'key');
@@ -31,7 +33,9 @@ describe(createMockLocalStorage.name, () => {
         assert.strictEquals<number, number>(localStorage.length, 0);
     });
     it('clears the store', () => {
-        const {accessRecord, localStorage, store} = createMockLocalStorage({key: 'value'});
+        const {accessRecord, localStorage, store} = createMockLocalStorage({
+            key: 'value',
+        });
 
         assert.deepEquals(accessRecord, createEmptyMockLocalStorageAccessRecord());
         assert.hasKey(store, 'key');
@@ -67,7 +71,12 @@ describe(createMockLocalStorage.name, () => {
 
         assert.deepEquals(accessRecord, {
             ...createEmptyMockLocalStorageAccessRecord(),
-            setItem: [{key: 'key', value: 'value'}],
+            setItem: [
+                {
+                    key: 'key',
+                    value: 'value',
+                },
+            ],
             getItem: ['key'],
             key: [0],
         });

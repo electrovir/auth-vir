@@ -91,7 +91,9 @@ export async function generateAuthCookie(
             HttpOnly: true,
             Path: '/',
             SameSite: 'Strict',
-            'MAX-AGE': convertDuration(cookieConfig.cookieDuration, {seconds: true}).seconds,
+            'MAX-AGE': convertDuration(cookieConfig.cookieDuration, {
+                seconds: true,
+            }).seconds,
             Secure: !cookieConfig.isDev,
         }),
         expiration,

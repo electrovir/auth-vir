@@ -16,7 +16,9 @@ import {type UserId} from '../generated/models.js';
 import {generateNewJwtKeys} from '../jwt/jwt-keys.js';
 import {BackendAuthClient, type BackendAuthClientConfig} from './backend-auth.client.js';
 
-const testCsrfOption: CsrfHeaderNameOption = {csrfHeaderPrefix: 'test'};
+const testCsrfOption: CsrfHeaderNameOption = {
+    csrfHeaderPrefix: 'test',
+};
 const testCsrfHeaderName = resolveCsrfHeaderName(testCsrfOption);
 
 function setCookieHeaderToRegularCookieHeader(headers: Readonly<OutgoingHttpHeaders>): string {
@@ -60,7 +62,10 @@ async function setupBackendAuthClientTest<AssumedUserParams extends AnyObject = 
         },
     });
 
-    await prismaApi.client.addData({data: seedDataOverride || defaultMockSeedData, prismaClient});
+    await prismaApi.client.addData({
+        data: seedDataOverride || defaultMockSeedData,
+        prismaClient,
+    });
 
     const mockUser =
         (await prismaClient.user.findFirst({
@@ -106,7 +111,9 @@ async function setupBackendAuthClientTest<AssumedUserParams extends AnyObject = 
 
 describe(BackendAuthClient.name, () => {
     it('gets a secure user', async (testContext) => {
-        const {backendAuthClient, mockUser} = await setupBackendAuthClientTest({testContext});
+        const {backendAuthClient, mockUser} = await setupBackendAuthClientTest({
+            testContext,
+        });
 
         assert.isDefined(mockUser, 'Failed to find mock user.');
 
@@ -136,7 +143,9 @@ describe(BackendAuthClient.name, () => {
         }>();
     });
     it('gets an insecure user', async (testContext) => {
-        const {backendAuthClient, mockUser} = await setupBackendAuthClientTest({testContext});
+        const {backendAuthClient, mockUser} = await setupBackendAuthClientTest({
+            testContext,
+        });
 
         assert.isDefined(mockUser, 'Failed to find mock user.');
 
@@ -206,7 +215,9 @@ describe(BackendAuthClient.name, () => {
         assert.deepEquals(userResult.user, mockUser);
         assert.isNotEmpty(userResult.responseHeaders, 'cookie refresh headers should be set');
 
-        await wait({seconds: 8});
+        await wait({
+            seconds: 8,
+        });
 
         assert.isUndefined(
             await backendAuthClient.getSecureUser({

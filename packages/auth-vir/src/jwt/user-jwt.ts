@@ -27,7 +27,9 @@ export const userJwtDataShape = defineShape({
      * enforce the max session duration. If not present, the session is considered to have started
      * when the JWT was issued.
      */
-    sessionStartedAt: optionalShape(0, {alsoUndefined: true}),
+    sessionStartedAt: optionalShape(0, {
+        alsoUndefined: true,
+    }),
 });
 
 /**

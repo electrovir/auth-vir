@@ -65,7 +65,9 @@ describe('user JWT', () => {
                     ...mockJwtParams,
                     jwtKeys,
                 }),
-            {matchMessage: 'wrong data'},
+            {
+                matchMessage: 'wrong data',
+            },
         );
     });
 });

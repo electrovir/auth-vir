@@ -18,7 +18,9 @@ import {
     createMockLocalStorage,
 } from './mock-local-storage.js';
 
-const testCsrfOption = {csrfHeaderPrefix: 'test'};
+const testCsrfOption = {
+    csrfHeaderPrefix: 'test',
+};
 const testCsrfHeaderName = resolveCsrfHeaderName(testCsrfOption);
 
 const mockUserId = 'mock-id';
@@ -28,7 +30,9 @@ async function setupHeaders() {
     const serverHeaders = await generateSuccessfulLoginHeaders(
         mockUserId,
         {
-            cookieDuration: {days: 20},
+            cookieDuration: {
+                days: 20,
+            },
             hostOrigin: 'https://www.example.com',
             jwtParams: {
                 ...mockJwtParams,
@@ -257,10 +261,28 @@ describe(handleAuthResponse.name, () => {
         const headers = new Headers();
 
         // fails because `ok` is false
-        handleAuthResponse({ok: false, headers}, {localStorage, ...testCsrfOption});
+        handleAuthResponse(
+            {
+                ok: false,
+                headers,
+            },
+            {
+                localStorage,
+                ...testCsrfOption,
+            },
+        );
         // fails because CSRF header is missing
         assert.throws(() =>
-            handleAuthResponse({ok: true, headers}, {localStorage, ...testCsrfOption}),
+            handleAuthResponse(
+                {
+                    ok: true,
+                    headers,
+                },
+                {
+                    localStorage,
+                    ...testCsrfOption,
+                },
+            ),
         );
         assert.deepEquals(accessRecord, {
             ...createEmptyMockLocalStorageAccessRecord(),
@@ -274,12 +296,28 @@ describe(handleAuthResponse.name, () => {
         const headers = new Headers();
 
         // fails because `ok` is false
-        handleAuthResponse({ok: false, headers}, testCsrfOption);
+        handleAuthResponse(
+            {
+                ok: false,
+                headers,
+            },
+            testCsrfOption,
+        );
         // fails because CSRF header is missing
-        assert.throws(() => handleAuthResponse({ok: true, headers}, testCsrfOption));
+        assert.throws(() =>
+            handleAuthResponse(
+                {
+                    ok: true,
+                    headers,
+                },
+                testCsrfOption,
+            ),
+        );
     });
     it('handles successful auth with mock localStorage', () => {
-        const mockCsrfToken = generateCsrfToken({days: 2});
+        const mockCsrfToken = generateCsrfToken({
+            days: 2,
+        });
 
         const {accessRecord, localStorage} = createMockLocalStorage();
 
@@ -287,7 +325,16 @@ describe(handleAuthResponse.name, () => {
             [testCsrfHeaderName]: JSON.stringify(mockCsrfToken),
         });
 
-        handleAuthResponse({ok: true, headers}, {localStorage, ...testCsrfOption});
+        handleAuthResponse(
+            {
+                ok: true,
+                headers,
+            },
+            {
+                localStorage,
+                ...testCsrfOption,
+            },
+        );
         assert.deepEquals(accessRecord, {
             ...createEmptyMockLocalStorageAccessRecord(),
             setItem: [
@@ -299,16 +346,27 @@ describe(handleAuthResponse.name, () => {
         });
 
         assert.strictEquals(
-            getCurrentCsrfToken({localStorage, ...testCsrfOption}).csrfToken?.token,
+            getCurrentCsrfToken({
+                localStorage,
+                ...testCsrfOption,
+            }).csrfToken?.token,
             mockCsrfToken.token,
         );
     });
     it('handles successful auth with default localStorage', () => {
-        const mockCsrfToken = generateCsrfToken({days: 2});
+        const mockCsrfToken = generateCsrfToken({
+            days: 2,
+        });
         const headers = new Headers({
             [testCsrfHeaderName]: JSON.stringify(mockCsrfToken),
         });
-        handleAuthResponse({ok: true, headers}, testCsrfOption);
+        handleAuthResponse(
+            {
+                ok: true,
+                headers,
+            },
+            testCsrfOption,
+        );
         assert.strictEquals(
             getCurrentCsrfToken(testCsrfOption).csrfToken?.token,
             mockCsrfToken.token,

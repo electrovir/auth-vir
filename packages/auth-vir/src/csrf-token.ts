@@ -38,7 +38,9 @@ export type CsrfToken = typeof csrfTokenShape.runtimeType;
  * @category Internal
  * @default {minutes: 5}
  */
-export const defaultAllowedClockSkew: Readonly<AnyDuration> = {minutes: 5};
+export const defaultAllowedClockSkew: Readonly<AnyDuration> = {
+    minutes: 5,
+};
 
 /**
  * Generates a random, cryptographically secure CSRF token.

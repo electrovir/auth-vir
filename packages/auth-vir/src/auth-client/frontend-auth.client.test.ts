@@ -20,7 +20,9 @@ import {
     type FrontendAuthClientConfig,
 } from '../index.js';
 
-const testCsrfOption: CsrfHeaderNameOption = {csrfHeaderPrefix: 'test'};
+const testCsrfOption: CsrfHeaderNameOption = {
+    csrfHeaderPrefix: 'test',
+};
 const testCsrfHeaderName = resolveCsrfHeaderName(testCsrfOption);
 
 describe(FrontendAuthClient.name, () => {
@@ -242,7 +244,9 @@ describe(FrontendAuthClient.name, () => {
         const {frontendAuthClient} = createMockFrontendAuthClient<{
             userId: User['id'];
         }>();
-        const assumedMockUser = {userId: 'yo' as User['id']};
+        const assumedMockUser = {
+            userId: 'yo' as User['id'],
+        };
 
         assert.isFalse(await frontendAuthClient.assumeUser(assumedMockUser));
 
@@ -259,7 +263,9 @@ describe(FrontendAuthClient.name, () => {
         const {frontendAuthClient} = createMockFrontendAuthClient<{
             userId: User['id'];
         }>(() => true);
-        const assumedMockUser = {userId: 'yo' as User['id']};
+        const assumedMockUser = {
+            userId: 'yo' as User['id'],
+        };
 
         assert.isTrue(await frontendAuthClient.assumeUser(assumedMockUser));
 
@@ -284,7 +290,9 @@ describe(FrontendAuthClient.name, () => {
         const {frontendAuthClient, mockLocalStorage} = createMockFrontendAuthClient<{
             userId: User['id'];
         }>(() => true);
-        const assumedMockUser = {userId: 'yo' as User['id']};
+        const assumedMockUser = {
+            userId: 'yo' as User['id'],
+        };
 
         mockLocalStorage.store[AuthHeaderName.AssumedUser] = JSON.stringify(assumedMockUser);
 
@@ -318,7 +326,9 @@ describe(FrontendAuthClient.name, () => {
         }>(() => true, testCsrfOption, {
             assumedUserHeaderName: mockHeaderName,
         });
-        const assumedMockUser = {userId: 'yo' as User['id']};
+        const assumedMockUser = {
+            userId: 'yo' as User['id'],
+        };
 
         assert.isTrue(await frontendAuthClient.assumeUser(assumedMockUser));
 

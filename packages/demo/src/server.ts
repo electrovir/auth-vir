@@ -15,7 +15,9 @@ import {
 } from 'auth-vir';
 import {demoService, type DemoService} from './demo-service-definition.js';
 
-const demoCsrfOption: CsrfHeaderNameOption = {csrfHeaderPrefix: 'demo'};
+const demoCsrfOption: CsrfHeaderNameOption = {
+    csrfHeaderPrefix: 'demo',
+};
 const demoCsrfHeaderName = resolveCsrfHeaderName(demoCsrfOption);
 
 type MockUser = {
@@ -33,7 +35,9 @@ const mockDatabase = {
 const jwtKeys = await parseJwtKeys(await generateNewJwtKeys());
 const jwtParams: Readonly<Omit<CreateJwtParams, 'jwtKeys'>> = {
     audience: 'demo-context',
-    jwtDuration: {days: 1},
+    jwtDuration: {
+        days: 1,
+    },
     issuer: 'demo-login',
 };
 
@@ -143,7 +147,9 @@ const implementedService = implementService({
                 headers: await generateSuccessfulLoginHeaders(
                     userMatch.id,
                     {
-                        cookieDuration: {hours: 2},
+                        cookieDuration: {
+                            hours: 2,
+                        },
                         hostOrigin: server.serviceOrigin,
                         jwtParams: {
                             ...jwtParams,
@@ -191,7 +197,9 @@ const implementedService = implementService({
                 headers: await generateSuccessfulLoginHeaders(
                     newUser.id,
                     {
-                        cookieDuration: {hours: 2},
+                        cookieDuration: {
+                            hours: 2,
+                        },
                         hostOrigin: server.serviceOrigin,
                         jwtParams: {
                             ...jwtParams,
