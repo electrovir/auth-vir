@@ -3,7 +3,7 @@ import {describe, it} from '@augment-vir/test';
 import {
     createEmptyMockLocalStorageAccessRecord,
     createMockLocalStorage,
-} from './mock-local-storage.js';
+} from './mock-csrf-token-store.js';
 
 describe(createMockLocalStorage.name, () => {
     it('removes an item', () => {

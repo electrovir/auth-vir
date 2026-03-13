@@ -1,71 +1,71 @@
 import {assert} from '@augment-vir/assert';
-import {randomString} from '@augment-vir/common';
 import {describe, it} from '@augment-vir/test';
-import {
-    generateCsrfToken,
-    getCurrentCsrfToken,
-    resolveCsrfHeaderName,
-    wipeCurrentCsrfToken,
-} from './csrf-token.js';
-import {createMockLocalStorage} from './mock-local-storage.js';
+import {generateCsrfToken, getCurrentCsrfToken, wipeCurrentCsrfToken} from './csrf-token.js';
+import {createMockCsrfTokenStore} from './mock-csrf-token-store.js';
 
 const testCsrfOption = {
     csrfHeaderPrefix: 'test',
 };
 
 describe(getCurrentCsrfToken.name, () => {
-    it('can override the localstorage key', () => {
-        const mockKey = `mock-key-${randomString()}`;
+    it('can store and retrieve a CSRF token', async () => {
         const mockCsrfToken = generateCsrfToken({
             days: 2,
         });
 
-        const {localStorage} = createMockLocalStorage();
-        localStorage.setItem(mockKey, JSON.stringify(mockCsrfToken));
+        const {csrfTokenStore} = createMockCsrfTokenStore();
+        await csrfTokenStore.setCsrfToken(JSON.stringify(mockCsrfToken));
 
         assert.strictEquals(
-            getCurrentCsrfToken({
-                localStorage,
-                csrfHeaderName: mockKey,
-            }).csrfToken?.token,
+            (
+                await getCurrentCsrfToken({
+                    csrfTokenStore,
+                    ...testCsrfOption,
+                })
+            ).csrfToken?.token,
             mockCsrfToken.token,
         );
-        wipeCurrentCsrfToken({
-            localStorage,
-            csrfHeaderName: mockKey,
-        });
-        assert.isUndefined(
-            getCurrentCsrfToken({
-                localStorage,
-                csrfHeaderName: mockKey,
-            }).csrfToken,
-        );
-    });
-    it('uses prefix to generate header name', () => {
-        const mockCsrfToken = generateCsrfToken({
-            days: 2,
-        });
-
-        const {localStorage} = createMockLocalStorage();
-        const resolvedName = resolveCsrfHeaderName(testCsrfOption);
-        localStorage.setItem(resolvedName, JSON.stringify(mockCsrfToken));
-
-        assert.strictEquals(
-            getCurrentCsrfToken({
-                localStorage,
-                ...testCsrfOption,
-            }).csrfToken?.token,
-            mockCsrfToken.token,
-        );
-        wipeCurrentCsrfToken({
-            localStorage,
+        await wipeCurrentCsrfToken({
+            csrfTokenStore,
             ...testCsrfOption,
         });
         assert.isUndefined(
-            getCurrentCsrfToken({
-                localStorage,
-                ...testCsrfOption,
-            }).csrfToken,
+            (
+                await getCurrentCsrfToken({
+                    csrfTokenStore,
+                    ...testCsrfOption,
+                })
+            ).csrfToken,
+        );
+    });
+    it('uses prefix to generate header name', async () => {
+        const mockCsrfToken = generateCsrfToken({
+            days: 2,
+        });
+
+        const {csrfTokenStore} = createMockCsrfTokenStore();
+        await csrfTokenStore.setCsrfToken(JSON.stringify(mockCsrfToken));
+
+        assert.strictEquals(
+            (
+                await getCurrentCsrfToken({
+                    csrfTokenStore,
+                    ...testCsrfOption,
+                })
+            ).csrfToken?.token,
+            mockCsrfToken.token,
+        );
+        await wipeCurrentCsrfToken({
+            csrfTokenStore,
+            ...testCsrfOption,
+        });
+        assert.isUndefined(
+            (
+                await getCurrentCsrfToken({
+                    csrfTokenStore,
+                    ...testCsrfOption,
+                })
+            ).csrfToken,
         );
     });
 });

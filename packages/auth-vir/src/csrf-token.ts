@@ -13,6 +13,7 @@ import {
 } from 'date-vir';
 import {defineShape, parseJsonWithShape} from 'object-shape-tester';
 import {type RequireExactlyOne} from 'type-fest';
+import {getDefaultCsrfTokenStore, type CsrfTokenStore} from './csrf-token-store.js';
 
 /**
  * Shape definition for {@link CsrfToken}.
@@ -137,24 +138,23 @@ export function extractCsrfTokenHeader(
 }
 
 /**
- * Stores the given CSRF token into local storage.
+ * Stores the given CSRF token into IndexedDB.
  *
  * @category Auth : Client
  */
-export function storeCsrfToken(
+export async function storeCsrfToken(
     csrfToken: Readonly<CsrfToken>,
     options: Readonly<CsrfHeaderNameOption> &
         PartialWithUndefined<{
             /**
-             * Allows mocking or overriding the global `localStorage`.
+             * Allows mocking or overriding the default CSRF token store.
              *
-             * @default globalThis.localStorage
+             * @default getDefaultCsrfTokenStore()
              */
-            localStorage: Pick<Storage, 'setItem' | 'removeItem'>;
+            csrfTokenStore: CsrfTokenStore;
         }>,
-) {
-    (options.localStorage || globalThis.localStorage).setItem(
-        resolveCsrfHeaderName(options),
+): Promise<void> {
+    await (options.csrfTokenStore || (await getDefaultCsrfTokenStore())).setCsrfToken(
         JSON.stringify(csrfToken),
     );
 }
@@ -226,15 +226,15 @@ export function parseCsrfToken(
  *
  * @category Auth : Client
  */
-export function getCurrentCsrfToken(
+export async function getCurrentCsrfToken(
     options: Readonly<CsrfHeaderNameOption> &
         PartialWithUndefined<{
             /**
-             * Allows mocking or overriding the global `localStorage`.
+             * Allows mocking or overriding the default CSRF token store.
              *
-             * @default globalThis.localStorage
+             * @default getDefaultCsrfTokenStore()
              */
-            localStorage: Pick<Storage, 'getItem'>;
+            csrfTokenStore: CsrfTokenStore;
             /**
              * Allowed clock skew tolerance for CSRF token expiration checks.
              *
@@ -242,32 +242,30 @@ export function getCurrentCsrfToken(
              */
             allowedClockSkew: Readonly<AnyDuration>;
         }>,
-): Readonly<GetCsrfTokenResult> {
+): Promise<Readonly<GetCsrfTokenResult>> {
     const rawCsrfToken: string | undefined =
-        (options.localStorage || globalThis.localStorage).getItem(resolveCsrfHeaderName(options)) ||
+        (await (options.csrfTokenStore || (await getDefaultCsrfTokenStore())).getCsrfToken()) ||
         undefined;
 
     return parseCsrfToken(rawCsrfToken, options);
 }
 
 /**
- * Wipes the current stored CSRF token. This should be used by client (frontend) code to logout a
- * user or react to a session timeout.
+ * Wipes the current stored CSRF token. This should be used by client (frontend) code to react to a
+ * session timeout.
  *
  * @category Auth : Client
  */
-export function wipeCurrentCsrfToken(
+export async function wipeCurrentCsrfToken(
     options: Readonly<CsrfHeaderNameOption> &
         PartialWithUndefined<{
             /**
-             * Allows mocking or overriding the global `localStorage`.
+             * Allows mocking or overriding the default CSRF token store.
              *
-             * @default globalThis.localStorage
+             * @default getDefaultCsrfTokenStore()
              */
-            localStorage: Pick<Storage, 'removeItem'>;
+            csrfTokenStore: CsrfTokenStore;
         }>,
-) {
-    return (options.localStorage || globalThis.localStorage).removeItem(
-        resolveCsrfHeaderName(options),
-    );
+): Promise<void> {
+    await (options.csrfTokenStore || (await getDefaultCsrfTokenStore())).deleteCsrfToken();
 }

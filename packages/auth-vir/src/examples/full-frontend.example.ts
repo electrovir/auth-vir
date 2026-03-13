@@ -20,7 +20,7 @@ export async function sendLoginRequest(
     userLoginData: {username: string; password: string},
     loginUrl: string,
 ) {
-    if (getCurrentCsrfToken(csrfOption).csrfToken) {
+    if ((await getCurrentCsrfToken(csrfOption)).csrfToken) {
         throw new Error('Already logged in.');
     }
 
@@ -30,7 +30,7 @@ export async function sendLoginRequest(
         credentials: 'include',
     });
 
-    handleAuthResponse(response, csrfOption);
+    await handleAuthResponse(response, csrfOption);
 
     return response;
 }
@@ -41,7 +41,7 @@ export async function sendAuthenticatedRequest(
     requestInit: Omit<RequestInit, 'headers'> = {},
     headers: Record<string, string> = {},
 ) {
-    const {csrfToken} = getCurrentCsrfToken(csrfOption);
+    const {csrfToken} = await getCurrentCsrfToken(csrfOption);
 
     if (!csrfToken) {
         throw new Error('Not authenticated.');
@@ -62,7 +62,7 @@ export async function sendAuthenticatedRequest(
      * another tab.)
      */
     if (response.status === HttpStatus.Unauthorized) {
-        wipeCurrentCsrfToken(csrfOption);
+        await wipeCurrentCsrfToken(csrfOption);
         throw new Error(`User no longer logged in.`);
     } else {
         return response;
@@ -70,6 +70,6 @@ export async function sendAuthenticatedRequest(
 }
 
 /** Call this when the user explicitly clicks a "log out" button. */
-export function logout() {
-    wipeCurrentCsrfToken(csrfOption);
+export async function logout() {
+    await wipeCurrentCsrfToken(csrfOption);
 }

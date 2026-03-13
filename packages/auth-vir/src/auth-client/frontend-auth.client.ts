@@ -9,15 +9,14 @@ import {
 import {type AnyDuration} from 'date-vir';
 import {listenToActivity} from 'detect-activity';
 import {type EmptyObject} from 'type-fest';
+import {type CsrfTokenStore} from '../csrf-token-store.js';
 import {
     type CsrfHeaderNameOption,
-    CsrfTokenFailureReason,
     defaultAllowedClockSkew,
     extractCsrfTokenHeader,
     getCurrentCsrfToken,
     resolveCsrfHeaderName,
     storeCsrfToken,
-    wipeCurrentCsrfToken,
 } from '../csrf-token.js';
 import {AuthHeaderName} from '../headers.js';
 
@@ -85,6 +84,7 @@ export type FrontendAuthClientConfig = Readonly<{
 
         overrides: PartialWithUndefined<{
             localStorage: Pick<Storage, 'setItem' | 'removeItem' | 'getItem'>;
+            csrfTokenStore: CsrfTokenStore;
         }>;
     }>;
 
@@ -130,20 +130,14 @@ export class FrontendAuthClient<AssumedUserParams extends JsonCompatibleObject =
     }
 
     /** Wraps {@link getCurrentCsrfToken} to automatically handle wiping an invalid CSRF token. */
-    public getCurrentCsrfToken(): string | undefined {
-        const csrfTokenResult = getCurrentCsrfToken({
+    public async getCurrentCsrfToken(): Promise<string | undefined> {
+        const csrfTokenResult = await getCurrentCsrfToken({
             ...this.config.csrf,
-            localStorage: this.config.overrides?.localStorage,
+            csrfTokenStore: this.config.overrides?.csrfTokenStore,
             allowedClockSkew: this.config.allowedClockSkew || defaultAllowedClockSkew,
         });
 
         if (csrfTokenResult.failure) {
-            if (csrfTokenResult.failure !== CsrfTokenFailureReason.DoesNotExist) {
-                wipeCurrentCsrfToken({
-                    ...this.config.csrf,
-                    localStorage: this.config.overrides?.localStorage,
-                });
-            }
             return undefined;
         }
 
@@ -195,8 +189,8 @@ export class FrontendAuthClient<AssumedUserParams extends JsonCompatibleObject =
      * `@augment-vir/common`](https://electrovir.github.io/augment-vir/functions/mergeDeep.html) to
      * combine them with these.
      */
-    public createAuthenticatedRequestInit(): RequestInit {
-        const csrfToken = this.getCurrentCsrfToken();
+    public async createAuthenticatedRequestInit(): Promise<RequestInit> {
+        const csrfToken = await this.getCurrentCsrfToken();
 
         const assumedUser = this.getAssumedUser();
         const headers: HeadersInit = {
@@ -255,9 +249,9 @@ export class FrontendAuthClient<AssumedUserParams extends JsonCompatibleObject =
             throw new Error('Did not receive any CSRF token.');
         }
 
-        storeCsrfToken(csrfToken, {
+        await storeCsrfToken(csrfToken, {
             ...this.config.csrf,
-            localStorage: this.config.overrides?.localStorage,
+            csrfTokenStore: this.config.overrides?.csrfTokenStore,
         });
     }
 
@@ -293,9 +287,9 @@ export class FrontendAuthClient<AssumedUserParams extends JsonCompatibleObject =
             allowedClockSkew: this.config.allowedClockSkew || defaultAllowedClockSkew,
         });
         if (csrfToken) {
-            storeCsrfToken(csrfToken, {
+            await storeCsrfToken(csrfToken, {
                 ...this.config.csrf,
-                localStorage: this.config.overrides?.localStorage,
+                csrfTokenStore: this.config.overrides?.csrfTokenStore,
             });
         }
 

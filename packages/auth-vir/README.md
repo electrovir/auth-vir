@@ -252,7 +252,7 @@ Use this on your client / frontend for storing and sending session authorization
 
 1. Send a login fetch request to your host / server / backend with `{credentials: 'include'}` set on the request.
 2. Pass the `Response` from step 1 into [`handleAuthResponse`](https://electrovir.github.io/auth-vir/functions/handleAuthResponse.html).
-3. In all subsequent fetch requests to the host / server / backend, set `{credentials: 'include'}` and include `{headers: {[AuthHeaderName.CsrfToken]: getCurrentCsrfToken()}}`.
+3. In all subsequent fetch requests to the host / server / backend, set `{credentials: 'include'}` and include `{headers: {[AuthHeaderName.CsrfToken]: (await getCurrentCsrfToken()).csrfToken}}`.
 
 Here's a full example of how to use all the client / frontend side auth functionality:
 
@@ -281,7 +281,7 @@ export async function sendLoginRequest(
     userLoginData: {username: string; password: string},
     loginUrl: string,
 ) {
-    if (getCurrentCsrfToken(csrfOption).csrfToken) {
+    if ((await getCurrentCsrfToken(csrfOption)).csrfToken) {
         throw new Error('Already logged in.');
     }
 
@@ -291,7 +291,7 @@ export async function sendLoginRequest(
         credentials: 'include',
     });
 
-    handleAuthResponse(response, csrfOption);
+    await handleAuthResponse(response, csrfOption);
 
     return response;
 }
@@ -302,7 +302,7 @@ export async function sendAuthenticatedRequest(
     requestInit: Omit<RequestInit, 'headers'> = {},
     headers: Record<string, string> = {},
 ) {
-    const {csrfToken} = getCurrentCsrfToken(csrfOption);
+    const {csrfToken} = await getCurrentCsrfToken(csrfOption);
 
     if (!csrfToken) {
         throw new Error('Not authenticated.');
@@ -323,7 +323,7 @@ export async function sendAuthenticatedRequest(
      * another tab.)
      */
     if (response.status === HttpStatus.Unauthorized) {
-        wipeCurrentCsrfToken(csrfOption);
+        await wipeCurrentCsrfToken(csrfOption);
         throw new Error(`User no longer logged in.`);
     } else {
         return response;
@@ -331,8 +331,8 @@ export async function sendAuthenticatedRequest(
 }
 
 /** Call this when the user explicitly clicks a "log out" button. */
-export function logout() {
-    wipeCurrentCsrfToken(csrfOption);
+export async function logout() {
+    await wipeCurrentCsrfToken(csrfOption);
 }
 ```
 

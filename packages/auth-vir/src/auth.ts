@@ -7,6 +7,7 @@ import {
     extractCookieJwt,
     generateAuthCookie,
 } from './cookie.js';
+import {type CsrfTokenStore} from './csrf-token-store.js';
 import {
     type CsrfHeaderNameOption,
     extractCsrfTokenHeader,
@@ -14,7 +15,6 @@ import {
     parseCsrfToken,
     resolveCsrfHeaderName,
     storeCsrfToken,
-    wipeCurrentCsrfToken,
 } from './csrf-token.js';
 import {type ParseJwtParams} from './jwt/jwt.js';
 import {type JwtUserData} from './jwt/user-jwt.js';
@@ -210,36 +210,34 @@ export function generateLogoutHeaders(
 
 /**
  * Store auth data on a client (frontend) after receiving an auth response from the host (backend).
- * Specifically, this stores the CSRF token into local storage (which doesn't need to be a secret).
- * Alternatively, if the given response failed, this will wipe the existing (if anyone) stored CSRF
+ * Specifically, this stores the CSRF token into IndexedDB (which doesn't need to be a secret).
+ * Alternatively, if the given response failed, this will wipe the existing (if any) stored CSRF
  * token.
  *
  * @category Auth : Client
  * @throws Error if no CSRF token header is found.
  */
-export function handleAuthResponse(
+export async function handleAuthResponse(
     response: Readonly<Pick<Response, 'ok' | 'headers'>>,
     options: Readonly<CsrfHeaderNameOption> &
         PartialWithUndefined<{
             /**
-             * Allows mocking or overriding the global `localStorage`.
+             * Allows mocking or overriding the default CSRF token store.
              *
-             * @default globalThis.localStorage
+             * @default getDefaultCsrfTokenStore()
              */
-            localStorage: Pick<Storage, 'setItem' | 'removeItem'>;
+            csrfTokenStore: CsrfTokenStore;
         }>,
-) {
+): Promise<void> {
     if (!response.ok) {
-        wipeCurrentCsrfToken(options);
         return;
     }
 
     const {csrfToken} = extractCsrfTokenHeader(response, options);
 
     if (!csrfToken) {
-        wipeCurrentCsrfToken(options);
         throw new Error('Did not receive any CSRF token.');
     }
 
-    storeCsrfToken(csrfToken, options);
+    await storeCsrfToken(csrfToken, options);
 }

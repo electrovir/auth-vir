@@ -14,9 +14,9 @@ import {generateCsrfToken, getCurrentCsrfToken, resolveCsrfHeaderName} from './c
 import {generateNewJwtKeys, parseJwtKeys} from './jwt/jwt-keys.js';
 import {mockJwtParams} from './jwt/jwt.mock.js';
 import {
-    createEmptyMockLocalStorageAccessRecord,
-    createMockLocalStorage,
-} from './mock-local-storage.js';
+    createEmptyMockCsrfTokenStoreAccessRecord,
+    createMockCsrfTokenStore,
+} from './mock-csrf-token-store.js';
 
 const testCsrfOption = {
     csrfHeaderPrefix: 'test',
@@ -255,48 +255,42 @@ describe(insecureExtractUserIdFromCookieAlone.name, () => {
 });
 
 describe(handleAuthResponse.name, () => {
-    it('handles failed auth with mock localStorage', () => {
-        const {accessRecord, localStorage} = createMockLocalStorage();
+    it('handles failed auth with mock store', async () => {
+        const {accessRecord, csrfTokenStore} = createMockCsrfTokenStore();
 
         const headers = new Headers();
 
         // fails because `ok` is false
-        handleAuthResponse(
+        await handleAuthResponse(
             {
                 ok: false,
                 headers,
             },
             {
-                localStorage,
+                csrfTokenStore,
                 ...testCsrfOption,
             },
         );
         // fails because CSRF header is missing
-        assert.throws(() =>
+        await assert.throws(() =>
             handleAuthResponse(
                 {
                     ok: true,
                     headers,
                 },
                 {
-                    localStorage,
+                    csrfTokenStore,
                     ...testCsrfOption,
                 },
             ),
         );
-        assert.deepEquals(accessRecord, {
-            ...createEmptyMockLocalStorageAccessRecord(),
-            removeItem: [
-                testCsrfHeaderName,
-                testCsrfHeaderName,
-            ],
-        });
+        assert.deepEquals(accessRecord, createEmptyMockCsrfTokenStoreAccessRecord());
     });
-    it('handles failed auth with default localStorage', () => {
+    it('handles failed auth with default store', async () => {
         const headers = new Headers();
 
         // fails because `ok` is false
-        handleAuthResponse(
+        await handleAuthResponse(
             {
                 ok: false,
                 headers,
@@ -304,7 +298,7 @@ describe(handleAuthResponse.name, () => {
             testCsrfOption,
         );
         // fails because CSRF header is missing
-        assert.throws(() =>
+        await assert.throws(() =>
             handleAuthResponse(
                 {
                     ok: true,
@@ -314,53 +308,52 @@ describe(handleAuthResponse.name, () => {
             ),
         );
     });
-    it('handles successful auth with mock localStorage', () => {
+    it('handles successful auth with mock store', async () => {
         const mockCsrfToken = generateCsrfToken({
             days: 2,
         });
 
-        const {accessRecord, localStorage} = createMockLocalStorage();
+        const {accessRecord, csrfTokenStore} = createMockCsrfTokenStore();
 
         const headers = new Headers({
             [testCsrfHeaderName]: JSON.stringify(mockCsrfToken),
         });
 
-        handleAuthResponse(
+        await handleAuthResponse(
             {
                 ok: true,
                 headers,
             },
             {
-                localStorage,
+                csrfTokenStore,
                 ...testCsrfOption,
             },
         );
         assert.deepEquals(accessRecord, {
-            ...createEmptyMockLocalStorageAccessRecord(),
-            setItem: [
-                {
-                    key: testCsrfHeaderName,
-                    value: JSON.stringify(mockCsrfToken),
-                },
+            ...createEmptyMockCsrfTokenStoreAccessRecord(),
+            setCsrfToken: [
+                JSON.stringify(mockCsrfToken),
             ],
         });
 
         assert.strictEquals(
-            getCurrentCsrfToken({
-                localStorage,
-                ...testCsrfOption,
-            }).csrfToken?.token,
+            (
+                await getCurrentCsrfToken({
+                    csrfTokenStore,
+                    ...testCsrfOption,
+                })
+            ).csrfToken?.token,
             mockCsrfToken.token,
         );
     });
-    it('handles successful auth with default localStorage', () => {
+    it('handles successful auth with default store', async () => {
         const mockCsrfToken = generateCsrfToken({
             days: 2,
         });
         const headers = new Headers({
             [testCsrfHeaderName]: JSON.stringify(mockCsrfToken),
         });
-        handleAuthResponse(
+        await handleAuthResponse(
             {
                 ok: true,
                 headers,
@@ -368,7 +361,7 @@ describe(handleAuthResponse.name, () => {
             testCsrfOption,
         );
         assert.strictEquals(
-            getCurrentCsrfToken(testCsrfOption).csrfToken?.token,
+            (await getCurrentCsrfToken(testCsrfOption)).csrfToken?.token,
             mockCsrfToken.token,
         );
     });

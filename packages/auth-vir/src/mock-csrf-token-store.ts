@@ -1,3 +1,5 @@
+import {type CsrfTokenStore} from './csrf-token-store.js';
+
 /**
  * `accessRecord` type for {@link createMockLocalStorage}'s output.
  *
@@ -70,6 +72,70 @@ export function createMockLocalStorage(
     return {
         localStorage: mockLocalStorage,
         store,
+        accessRecord,
+    };
+}
+
+/**
+ * `accessRecord` type for {@link createMockCsrfTokenStore}'s output.
+ *
+ * @category Internal
+ */
+export type MockCsrfTokenStoreAccessRecord = {
+    getCsrfToken: number;
+    setCsrfToken: string[];
+    deleteCsrfToken: number;
+};
+
+/**
+ * Create an empty `accessRecord` object, this is to be used in conjunction with
+ * {@link createMockCsrfTokenStore}.
+ *
+ * @category Mock
+ */
+export function createEmptyMockCsrfTokenStoreAccessRecord(): MockCsrfTokenStoreAccessRecord {
+    return {
+        getCsrfToken: 0,
+        setCsrfToken: [],
+        deleteCsrfToken: 0,
+    };
+}
+
+/**
+ * Create a mock {@link CsrfTokenStore} backed by a simple in-memory object, for use in tests.
+ *
+ * @category Mock
+ */
+export function createMockCsrfTokenStore(
+    /** Set an initial value to initialize the mocked store contents. */
+    init?: string | undefined,
+) {
+    let storedValue: string | undefined = init;
+    const accessRecord = createEmptyMockCsrfTokenStoreAccessRecord();
+
+    const csrfTokenStore: CsrfTokenStore = {
+        getCsrfToken() {
+            accessRecord.getCsrfToken++;
+            return Promise.resolve(storedValue);
+        },
+        setCsrfToken(value: string) {
+            accessRecord.setCsrfToken.push(value);
+            storedValue = value;
+            return Promise.resolve();
+        },
+        deleteCsrfToken() {
+            accessRecord.deleteCsrfToken++;
+            storedValue = undefined;
+            return Promise.resolve();
+        },
+    };
+
+    return {
+        csrfTokenStore,
+        /** The current value held in the mock store. */
+        get storedValue() {
+            return storedValue;
+        },
         accessRecord,
     };
 }

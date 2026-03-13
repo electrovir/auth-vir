@@ -43,7 +43,7 @@ function setupAuthState() {
 async function loadUser(
     apiPromise: Promise<DemoApi>,
 ): Promise<DemoService['endpoints']['/user']['ResponseType'] | undefined> {
-    const {csrfToken} = getCurrentCsrfToken(demoCsrfOption);
+    const {csrfToken} = await getCurrentCsrfToken(demoCsrfOption);
 
     if (csrfToken) {
         const api = await apiPromise;
@@ -71,7 +71,7 @@ export async function connectToDemoApi(
     return generateApi(await mapServiceDevPort(demoService), {
         endpointFetch: {
             async fetch(url, init) {
-                const {csrfToken} = getCurrentCsrfToken(demoCsrfOption);
+                const {csrfToken} = await getCurrentCsrfToken(demoCsrfOption);
                 const extraHeaders = csrfToken
                     ? {
                           [demoCsrfHeaderName]: csrfToken.token,
@@ -183,7 +183,7 @@ export const DemoApp = defineElement()({
                     },
                 });
 
-                handleAuthResponse(response.response, demoCsrfOption);
+                await handleAuthResponse(response.response, demoCsrfOption);
 
                 if (response.ok) {
                     state.authenticatedUser.setValue(response.data);

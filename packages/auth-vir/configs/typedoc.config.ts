@@ -12,6 +12,11 @@ export const typeDocConfig: Partial<TypeDocOptions> = {
     entryPoints: [
         indexTsFile,
     ],
+    externalSymbolLinkMappings: {
+        'local-db-client': {
+            LocalDbClient: 'https://www.npmjs.com/package/local-db-client',
+        },
+    },
     intentionallyNotExported: [],
     defaultCategory: 'MISSING CATEGORY',
     categoryOrder: [
