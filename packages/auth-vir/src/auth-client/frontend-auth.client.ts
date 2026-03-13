@@ -164,9 +164,7 @@ export class FrontendAuthClient<AssumedUserParams extends JsonCompatibleObject =
         if (!assumedUserParams) {
             localStorage.removeItem(storageKey);
             return true;
-        }
-
-        if (!(await this.config.canAssumeUser?.())) {
+        } else if (!(await this.config.canAssumeUser?.())) {
             return false;
         }
 

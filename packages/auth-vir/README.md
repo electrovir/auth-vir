@@ -265,6 +265,7 @@ import {
     getCurrentCsrfToken,
     handleAuthResponse,
     resolveCsrfHeaderName,
+    wipeCurrentCsrfToken,
 } from 'auth-vir';
 
 /**
@@ -322,6 +323,7 @@ export async function sendAuthenticatedRequest(
      * another tab.)
      */
     if (response.status === HttpStatus.Unauthorized) {
+        wipeCurrentCsrfToken(csrfOption);
         throw new Error(`User no longer logged in.`);
     } else {
         return response;
@@ -329,7 +331,9 @@ export async function sendAuthenticatedRequest(
 }
 
 /** Call this when the user explicitly clicks a "log out" button. */
-export function logout() {}
+export function logout() {
+    wipeCurrentCsrfToken(csrfOption);
+}
 ```
 
 # Requirements
