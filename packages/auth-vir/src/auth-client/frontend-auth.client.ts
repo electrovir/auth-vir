@@ -282,17 +282,6 @@ export class FrontendAuthClient<AssumedUserParams extends JsonCompatibleObject =
             return false;
         }
 
-        /** If the response has a new CSRF token, store it. */
-        const {csrfToken} = extractCsrfTokenHeader(response, this.config.csrf, {
-            allowedClockSkew: this.config.allowedClockSkew || defaultAllowedClockSkew,
-        });
-        if (csrfToken) {
-            await storeCsrfToken(csrfToken, {
-                ...this.config.csrf,
-                csrfTokenStore: this.config.overrides?.csrfTokenStore,
-            });
-        }
-
         return true;
     }
 }
