@@ -253,7 +253,6 @@ Use this on your client / frontend for storing and sending session authorization
 1. Send a login fetch request to your host / server / backend with `{credentials: 'include'}` set on the request.
 2. Pass the `Response` from step 1 into [`handleAuthResponse`](https://electrovir.github.io/auth-vir/functions/handleAuthResponse.html).
 3. In all subsequent fetch requests to the host / server / backend, set `{credentials: 'include'}` and include `{headers: {[AuthHeaderName.CsrfToken]: getCurrentCsrfToken()}}`.
-4. Upon user logout, call [`wipeCurrentCsrfToken()`](https://electrovir.github.io/auth-vir/functions/wipeCurrentCsrfToken.html)
 
 Here's a full example of how to use all the client / frontend side auth functionality:
 
@@ -266,7 +265,6 @@ import {
     getCurrentCsrfToken,
     handleAuthResponse,
     resolveCsrfHeaderName,
-    wipeCurrentCsrfToken,
 } from 'auth-vir';
 
 /**
@@ -324,7 +322,6 @@ export async function sendAuthenticatedRequest(
      * another tab.)
      */
     if (response.status === HttpStatus.Unauthorized) {
-        wipeCurrentCsrfToken(csrfOption);
         throw new Error(`User no longer logged in.`);
     } else {
         return response;
@@ -332,9 +329,7 @@ export async function sendAuthenticatedRequest(
 }
 
 /** Call this when the user explicitly clicks a "log out" button. */
-export function logout() {
-    wipeCurrentCsrfToken(csrfOption);
-}
+export function logout() {}
 ```
 
 # Requirements

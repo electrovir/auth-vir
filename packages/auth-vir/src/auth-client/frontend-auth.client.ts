@@ -224,10 +224,6 @@ export class FrontendAuthClient<AssumedUserParams extends JsonCompatibleObject =
     /** Wipes the current user auth. */
     public async logout() {
         await this.config.authClearedCallback?.();
-        wipeCurrentCsrfToken({
-            ...this.config.csrf,
-            localStorage: this.config.overrides?.localStorage,
-        });
     }
 
     /**

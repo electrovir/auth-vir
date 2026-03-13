@@ -377,16 +377,12 @@ describe(handleAuthResponse.name, () => {
 describe(generateLogoutHeaders.name, () => {
     it('generates headers', () => {
         assert.deepEquals(
-            generateLogoutHeaders(
-                {
-                    hostOrigin: 'my-origin',
-                    cookieName: 'my-name',
-                    isDev: true,
-                },
-                testCsrfOption,
-            ),
+            generateLogoutHeaders({
+                hostOrigin: 'my-origin',
+                cookieName: 'my-name',
+                isDev: true,
+            }),
             {
-                [testCsrfHeaderName]: 'redacted',
                 'set-cookie':
                     'my-name=redacted; Domain=my-origin; HttpOnly; Path=/; SameSite=Strict; MAX-AGE=0',
             },

@@ -575,7 +575,6 @@ export class BackendAuthClient<
                           isSignUpCookie: true,
                           requestHeaders: undefined,
                       }),
-                      this.config.csrf,
                   )
                 : undefined;
         const authCookieHeaders =
@@ -585,26 +584,41 @@ export class BackendAuthClient<
                           isSignUpCookie: false,
                           requestHeaders: undefined,
                       }),
-                      this.config.csrf,
                   )
                 : undefined;
 
-        const setCookieHeader: {
-            'set-cookie': string[];
-        } = {
+        return {
             'set-cookie': mergeHeaderValues(
                 signUpCookieHeaders?.['set-cookie'],
                 authCookieHeaders?.['set-cookie'],
             ),
         };
-        const csrfTokenHeader = {
-            ...authCookieHeaders,
-            ...signUpCookieHeaders,
-        };
+    }
+
+    /**
+     * Refreshes a login session by reissuing the auth cookie with the same CSRF token instead of
+     * generating a new one.
+     */
+    protected async refreshLoginHeaders({
+        userId,
+        cookieParams,
+        existingUserIdResult,
+    }: {
+        userId: UserId;
+        cookieParams: Readonly<CookieParams>;
+        existingUserIdResult: Readonly<UserIdResult<UserId>>;
+    }): Promise<Record<string, string>> {
+        const {cookie} = await generateAuthCookie(
+            {
+                csrfToken: existingUserIdResult.csrfToken,
+                userId,
+                sessionStartedAt: existingUserIdResult.sessionStartedAt,
+            },
+            cookieParams,
+        );
 
         return {
-            ...csrfTokenHeader,
-            ...setCookieHeader,
+            'set-cookie': cookie,
         };
     }
 
@@ -627,7 +641,6 @@ export class BackendAuthClient<
                       isSignUpCookie: !isSignUpCookie,
                       requestHeaders,
                   }),
-                  this.config.csrf,
               )
             : undefined;
 
@@ -637,17 +650,19 @@ export class BackendAuthClient<
             this.config.csrf,
             isSignUpCookie ? AuthCookieName.SignUp : AuthCookieName.Auth,
         );
-        const sessionStartedAt = existingUserIdResult?.sessionStartedAt;
 
-        const newCookieHeaders = await generateSuccessfulLoginHeaders(
-            userId,
-            await this.getCookieParams({
-                isSignUpCookie,
-                requestHeaders,
-            }),
-            this.config.csrf,
-            sessionStartedAt,
-        );
+        const cookieParams = await this.getCookieParams({
+            isSignUpCookie,
+            requestHeaders,
+        });
+
+        const newCookieHeaders = existingUserIdResult
+            ? await this.refreshLoginHeaders({
+                  userId,
+                  cookieParams,
+                  existingUserIdResult,
+              })
+            : await generateSuccessfulLoginHeaders(userId, cookieParams, this.config.csrf);
 
         return {
             ...newCookieHeaders,

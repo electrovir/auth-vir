@@ -234,9 +234,10 @@ describe(FrontendAuthClient.name, () => {
             headers: new Headers(),
         });
 
-        assert.isUndefined(
+        assert.strictEquals(
             mockLocalStorage.store[testCsrfHeaderName],
-            'CSRF token should be cleared.',
+            JSON.stringify(csrfToken),
+            'CSRF token should still be stored after logout.',
         );
     });
 

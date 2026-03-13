@@ -202,13 +202,9 @@ export async function generateSuccessfulLoginHeaders(
  */
 export function generateLogoutHeaders(
     cookieConfig: Readonly<Pick<CookieParams, 'cookieName' | 'hostOrigin' | 'isDev'>>,
-    csrfHeaderNameOption: Readonly<CsrfHeaderNameOption>,
 ): Record<string, string> {
-    const csrfHeaderName = resolveCsrfHeaderName(csrfHeaderNameOption);
-
     return {
         'set-cookie': clearAuthCookie(cookieConfig),
-        [csrfHeaderName]: 'redacted',
     };
 }
 

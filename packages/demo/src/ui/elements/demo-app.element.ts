@@ -12,18 +12,10 @@ import {
     getCurrentCsrfToken,
     handleAuthResponse,
     resolveCsrfHeaderName,
-    wipeCurrentCsrfToken,
     type CsrfHeaderNameOption,
 } from 'auth-vir';
 import {asyncProp, css, defineElement, html, listen, nothing, type AsyncProp} from 'element-vir';
-import {
-    LoaderAnimated24Icon,
-    ViraButton,
-    ViraButtonStyle,
-    ViraIcon,
-    ViraInput,
-    ViraInputType,
-} from 'vira';
+import {LoaderAnimated24Icon, ViraButton, ViraIcon, ViraInput, ViraInputType} from 'vira';
 import {demoService, type DemoService} from '../../demo-service-definition.js';
 
 const demoCsrfOption: CsrfHeaderNameOption = {
@@ -99,7 +91,6 @@ export async function connectToDemoApi(
                  */
                 if (response.status === HttpStatus.Unauthorized) {
                     asyncUser.setValue(undefined);
-                    wipeCurrentCsrfToken(demoCsrfOption);
                 }
 
                 return response;
@@ -253,8 +244,7 @@ export const DemoApp = defineElement()({
             <div class="buttons">
                 <${ViraButton.assign({
                     text: 'Sign up',
-                    buttonStyle: ViraButtonStyle.Outline,
-                    disabled: !buttonsEnabled,
+                    isDisabled: !buttonsEnabled,
                     icon: state.status === LoginStatus.SigningUp ? LoaderAnimated24Icon : undefined,
                 })}
                     ${listen('click', async () => {
@@ -263,7 +253,7 @@ export const DemoApp = defineElement()({
                 ></${ViraButton}>
                 <${ViraButton.assign({
                     text: 'Login',
-                    disabled: !buttonsEnabled,
+                    isDisabled: !buttonsEnabled,
                     icon: state.status === LoginStatus.LoggingIn ? LoaderAnimated24Icon : undefined,
                 })}
                     ${listen('click', async () => {
@@ -307,7 +297,6 @@ export const DemoApp = defineElement()({
                     })}
                         ${listen('click', () => {
                             state.authenticatedUser.setValue(undefined);
-                            wipeCurrentCsrfToken(demoCsrfOption);
                         })}
                     ></${ViraButton}>
                 `;
