@@ -20,7 +20,7 @@ export async function sendLoginRequest(
     userLoginData: {username: string; password: string},
     loginUrl: string,
 ) {
-    if ((await getCurrentCsrfToken(csrfOption)).csrfToken) {
+    if (await getCurrentCsrfToken(csrfOption)) {
         throw new Error('Already logged in.');
     }
 
@@ -41,7 +41,7 @@ export async function sendAuthenticatedRequest(
     requestInit: Omit<RequestInit, 'headers'> = {},
     headers: Record<string, string> = {},
 ) {
-    const {csrfToken} = await getCurrentCsrfToken(csrfOption);
+    const csrfToken = await getCurrentCsrfToken(csrfOption);
 
     if (!csrfToken) {
         throw new Error('Not authenticated.');
@@ -52,7 +52,7 @@ export async function sendAuthenticatedRequest(
         credentials: 'include',
         headers: {
             ...headers,
-            [resolveCsrfHeaderName(csrfOption)]: csrfToken.token,
+            [resolveCsrfHeaderName(csrfOption)]: csrfToken,
         },
     });
 

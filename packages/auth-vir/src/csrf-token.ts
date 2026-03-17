@@ -1,40 +1,11 @@
-import {
-    randomString,
-    wrapInTry,
-    type PartialWithUndefined,
-    type SelectFrom,
-} from '@augment-vir/common';
-import {
-    calculateRelativeDate,
-    fullDateShape,
-    getNowInUtcTimezone,
-    isDateAfter,
-    type AnyDuration,
-} from 'date-vir';
-import {defineShape, parseJsonWithShape} from 'object-shape-tester';
+import {randomString, type PartialWithUndefined, type SelectFrom} from '@augment-vir/common';
+import {type AnyDuration} from 'date-vir';
 import {type RequireExactlyOne} from 'type-fest';
 import {getDefaultCsrfTokenStore, type CsrfTokenStore} from './csrf-token-store.js';
 
 /**
- * Shape definition for {@link CsrfToken}.
- *
- * @category Internal
- */
-export const csrfTokenShape = defineShape({
-    token: '',
-    expiration: fullDateShape,
-});
-
-/**
- * A cryptographically CSRF token with expiration date.
- *
- * @category Internal
- */
-export type CsrfToken = typeof csrfTokenShape.runtimeType;
-
-/**
- * Default allowed clock skew for CSRF token expiration checks. Accounts for differences between
- * server and client clocks when checking token expiration.
+ * Default allowed clock skew for JWT expiration checks. Accounts for differences between server and
+ * client clocks.
  *
  * @category Internal
  * @default {minutes: 5}
@@ -44,32 +15,12 @@ export const defaultAllowedClockSkew: Readonly<AnyDuration> = {
 };
 
 /**
- * Generates a random, cryptographically secure CSRF token.
+ * Generates a random, cryptographically secure CSRF token string.
  *
  * @category Internal
  */
-export function generateCsrfToken(
-    /** How long the CSRF token is valid for. */
-    duration: Readonly<AnyDuration>,
-): CsrfToken {
-    return {
-        token: randomString(256),
-        expiration: calculateRelativeDate(getNowInUtcTimezone(), duration),
-    };
-}
-
-/**
- * CSRF token failure reasons for {@link GetCsrfTokenResult}.
- *
- * @category Internal
- */
-export enum CsrfTokenFailureReason {
-    /** No CSRF token was found. */
-    DoesNotExist = 'does-not-exist',
-    /** A CSRF token was found but parsing it failed. */
-    ParseFailed = 'parse-failed',
-    /** A CSRF token was found and parsed but is expired. */
-    Expired = 'expired',
+export function generateCsrfToken(): string {
+    return randomString(256);
 }
 
 /**
@@ -104,16 +55,6 @@ export function resolveCsrfHeaderName(option: Readonly<CsrfHeaderNameOption>): s
 }
 
 /**
- * Output from {@link getCurrentCsrfToken}.
- *
- * @category Internal
- */
-export type GetCsrfTokenResult = RequireExactlyOne<{
-    csrfToken: Readonly<CsrfToken>;
-    failure: CsrfTokenFailureReason;
-}>;
-
-/**
  * Extract the CSRF token header from a response.
  *
  * @category Auth : Client
@@ -121,20 +62,10 @@ export type GetCsrfTokenResult = RequireExactlyOne<{
 export function extractCsrfTokenHeader(
     response: Readonly<PartialWithUndefined<SelectFrom<Response, {headers: true}>>>,
     csrfHeaderNameOption: Readonly<CsrfHeaderNameOption>,
-    options?: PartialWithUndefined<{
-        /**
-         * Allowed clock skew tolerance for CSRF token expiration checks.
-         *
-         * @default {minutes: 5}
-         */
-        allowedClockSkew: Readonly<AnyDuration>;
-    }>,
-): Readonly<GetCsrfTokenResult> {
+): string | undefined {
     const csrfTokenHeaderName = resolveCsrfHeaderName(csrfHeaderNameOption);
 
-    const rawCsrfToken = response.headers?.get(csrfTokenHeaderName);
-
-    return parseCsrfToken(rawCsrfToken, options);
+    return response.headers?.get(csrfTokenHeaderName) || undefined;
 }
 
 /**
@@ -143,7 +74,7 @@ export function extractCsrfTokenHeader(
  * @category Auth : Client
  */
 export async function storeCsrfToken(
-    csrfToken: Readonly<CsrfToken>,
+    csrfToken: string,
     options: Readonly<CsrfHeaderNameOption> &
         PartialWithUndefined<{
             /**
@@ -154,70 +85,7 @@ export async function storeCsrfToken(
             csrfTokenStore: CsrfTokenStore;
         }>,
 ): Promise<void> {
-    await (options.csrfTokenStore || (await getDefaultCsrfTokenStore())).setCsrfToken(
-        JSON.stringify(csrfToken),
-    );
-}
-
-/**
- * Parse a raw CSRF token JSON string.
- *
- * @category Internal
- */
-export function parseCsrfToken(
-    value: string | undefined | null,
-    options?: PartialWithUndefined<{
-        /**
-         * Allowed clock skew tolerance for CSRF token expiration checks. Accounts for differences
-         * between server and client clocks.
-         *
-         * @default {minutes: 5}
-         */
-        allowedClockSkew: Readonly<AnyDuration>;
-    }>,
-): Readonly<GetCsrfTokenResult> {
-    if (!value) {
-        return {
-            failure: CsrfTokenFailureReason.DoesNotExist,
-        };
-    }
-
-    const csrfToken: CsrfToken | undefined = wrapInTry(
-        () =>
-            parseJsonWithShape(value, csrfTokenShape, {
-                /** For forwards / backwards compatibility. */
-                allowExtraKeys: true,
-            }),
-        {
-            fallbackValue: undefined,
-        },
-    );
-
-    if (!csrfToken) {
-        return {
-            failure: CsrfTokenFailureReason.ParseFailed,
-        };
-    }
-
-    const effectiveExpiration = calculateRelativeDate(
-        csrfToken.expiration,
-        options?.allowedClockSkew || defaultAllowedClockSkew,
-    );
-
-    if (
-        isDateAfter({
-            fullDate: getNowInUtcTimezone(),
-            relativeTo: effectiveExpiration,
-        })
-    ) {
-        return {
-            failure: CsrfTokenFailureReason.Expired,
-        };
-    }
-
-    return {
-        csrfToken,
-    };
+    await (options.csrfTokenStore || (await getDefaultCsrfTokenStore())).setCsrfToken(csrfToken);
 }
 
 /**
@@ -235,19 +103,12 @@ export async function getCurrentCsrfToken(
              * @default getDefaultCsrfTokenStore()
              */
             csrfTokenStore: CsrfTokenStore;
-            /**
-             * Allowed clock skew tolerance for CSRF token expiration checks.
-             *
-             * @default {minutes: 5}
-             */
-            allowedClockSkew: Readonly<AnyDuration>;
         }>,
-): Promise<Readonly<GetCsrfTokenResult>> {
-    const rawCsrfToken: string | undefined =
+): Promise<string | undefined> {
+    return (
         (await (options.csrfTokenStore || (await getDefaultCsrfTokenStore())).getCsrfToken()) ||
-        undefined;
-
-    return parseCsrfToken(rawCsrfToken, options);
+        undefined
+    );
 }
 
 /**

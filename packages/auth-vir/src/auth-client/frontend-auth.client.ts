@@ -12,7 +12,6 @@ import {type EmptyObject} from 'type-fest';
 import {type CsrfTokenStore} from '../csrf-token-store.js';
 import {
     type CsrfHeaderNameOption,
-    defaultAllowedClockSkew,
     extractCsrfTokenHeader,
     getCurrentCsrfToken,
     resolveCsrfHeaderName,
@@ -74,13 +73,6 @@ export type FrontendAuthClientConfig = Readonly<{
          * another user.
          */
         assumedUserHeaderName: string;
-        /**
-         * Allowed clock skew tolerance for CSRF token expiration checks. Accounts for differences
-         * between server and client clocks.
-         *
-         * @default {minutes: 5}
-         */
-        allowedClockSkew: Readonly<AnyDuration>;
 
         overrides: PartialWithUndefined<{
             localStorage: Pick<Storage, 'setItem' | 'removeItem' | 'getItem'>;
@@ -129,19 +121,12 @@ export class FrontendAuthClient<AssumedUserParams extends JsonCompatibleObject =
         this.removeActivityListener?.();
     }
 
-    /** Wraps {@link getCurrentCsrfToken} to automatically handle wiping an invalid CSRF token. */
+    /** Wraps {@link getCurrentCsrfToken} to retrieve the stored CSRF token string. */
     public async getCurrentCsrfToken(): Promise<string | undefined> {
-        const csrfTokenResult = await getCurrentCsrfToken({
+        return await getCurrentCsrfToken({
             ...this.config.csrf,
             csrfTokenStore: this.config.overrides?.csrfTokenStore,
-            allowedClockSkew: this.config.allowedClockSkew || defaultAllowedClockSkew,
         });
-
-        if (csrfTokenResult.failure) {
-            return undefined;
-        }
-
-        return csrfTokenResult.csrfToken.token;
     }
 
     /**
@@ -240,9 +225,7 @@ export class FrontendAuthClient<AssumedUserParams extends JsonCompatibleObject =
             throw new Error('Login response failed.');
         }
 
-        const {csrfToken} = extractCsrfTokenHeader(response, this.config.csrf, {
-            allowedClockSkew: this.config.allowedClockSkew || defaultAllowedClockSkew,
-        });
+        const csrfToken = extractCsrfTokenHeader(response, this.config.csrf);
 
         if (!csrfToken) {
             await this.logout();

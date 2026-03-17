@@ -12,7 +12,6 @@ import {
     type CsrfHeaderNameOption,
     extractCsrfTokenHeader,
     generateCsrfToken,
-    parseCsrfToken,
     resolveCsrfHeaderName,
     storeCsrfToken,
 } from './csrf-token.js';
@@ -66,15 +65,7 @@ function readCsrfTokenHeader(
     headers: HeaderContainer,
     csrfHeaderNameOption: Readonly<CsrfHeaderNameOption>,
 ): string | undefined {
-    const rawCsrfToken = readHeader(headers, resolveCsrfHeaderName(csrfHeaderNameOption));
-
-    if (!rawCsrfToken) {
-        return undefined;
-    }
-
-    const token = parseCsrfToken(rawCsrfToken).csrfToken?.token || rawCsrfToken;
-
-    return token;
+    return readHeader(headers, resolveCsrfHeaderName(csrfHeaderNameOption));
 }
 
 /**
@@ -173,12 +164,12 @@ export async function generateSuccessfulLoginHeaders(
      */
     sessionStartedAt?: number | undefined,
 ): Promise<Record<string, string>> {
-    const csrfToken = generateCsrfToken(cookieConfig.cookieDuration);
+    const csrfToken = generateCsrfToken();
     const csrfHeaderName = resolveCsrfHeaderName(csrfHeaderNameOption);
 
-    const {cookie, expiration} = await generateAuthCookie(
+    const {cookie} = await generateAuthCookie(
         {
-            csrfToken: csrfToken.token,
+            csrfToken,
             userId,
             sessionStartedAt: sessionStartedAt ?? Date.now(),
         },
@@ -187,10 +178,7 @@ export async function generateSuccessfulLoginHeaders(
 
     return {
         'set-cookie': cookie,
-        [csrfHeaderName]: JSON.stringify({
-            token: csrfToken.token,
-            expiration,
-        }),
+        [csrfHeaderName]: csrfToken,
     };
 }
 
@@ -233,7 +221,7 @@ export async function handleAuthResponse(
         return;
     }
 
-    const {csrfToken} = extractCsrfTokenHeader(response, options);
+    const csrfToken = extractCsrfTokenHeader(response, options);
 
     if (!csrfToken) {
         throw new Error('Did not receive any CSRF token.');

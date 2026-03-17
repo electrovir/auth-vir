@@ -52,11 +52,11 @@ async function loadUser(
     apiPromise: Promise<DemoApi>,
 ): Promise<DemoService['endpoints']['/user']['ResponseType'] | undefined> {
     console.info('[loadUser] Checking for existing CSRF token...');
-    const {csrfToken} = await getCurrentCsrfToken(demoCsrfOption);
+    const csrfToken = await getCurrentCsrfToken(demoCsrfOption);
 
     console.info(
         '[loadUser] CSRF token result:',
-        csrfToken ? `token exists (${csrfToken.token.slice(0, 20)}...)` : 'no token found',
+        csrfToken ? `token exists (${csrfToken.slice(0, 20)}...)` : 'no token found',
     );
 
     if (csrfToken) {
@@ -65,7 +65,7 @@ async function loadUser(
         const output = await api.endpoints['/user'].fetch({
             options: {
                 headers: {
-                    [demoCsrfHeaderName]: csrfToken.token,
+                    [demoCsrfHeaderName]: csrfToken,
                 },
             },
         });
@@ -92,24 +92,17 @@ export async function connectToDemoApi(
         endpointFetch: {
             async fetch(url, init) {
                 console.info('[fetch-wrapper] Fetching:', url);
-                console.info('[fetch-wrapper] Init method:', init?.method);
+                console.info('[fetch-wrapper] Init method:', init.method);
 
-                const csrfTokenResult = await getCurrentCsrfToken(demoCsrfOption);
-                const {csrfToken} = csrfTokenResult;
+                const csrfToken = await getCurrentCsrfToken(demoCsrfOption);
                 console.info(
                     '[fetch-wrapper] CSRF token for request:',
-                    csrfToken ? `present (${csrfToken.token.slice(0, 20)}...)` : 'MISSING',
+                    csrfToken ? `present (${csrfToken.slice(0, 20)}...)` : 'MISSING',
                 );
-                if (!csrfToken) {
-                    console.info(
-                        '[fetch-wrapper] CSRF token failure details:',
-                        JSON.stringify(csrfTokenResult),
-                    );
-                }
 
                 const extraHeaders = csrfToken
                     ? {
-                          [demoCsrfHeaderName]: csrfToken.token,
+                          [demoCsrfHeaderName]: csrfToken,
                       }
                     : {};
 
@@ -262,13 +255,8 @@ export const DemoApp = defineElement()({
                 const storedCsrf = await getCurrentCsrfToken(demoCsrfOption);
                 console.info(
                     '[login] CSRF token stored after handleAuthResponse:',
-                    storedCsrf.csrfToken
-                        ? `yes (${storedCsrf.csrfToken.token.slice(0, 20)}...)`
-                        : 'NO - MISSING',
+                    storedCsrf ? `yes (${storedCsrf.slice(0, 20)}...)` : 'NO - MISSING',
                 );
-                if (!storedCsrf.csrfToken) {
-                    console.info('[login] CSRF store failure:', JSON.stringify(storedCsrf));
-                }
 
                 if (response.ok) {
                     console.info('[login] Login successful, setting user data');
@@ -384,9 +372,9 @@ export const DemoApp = defineElement()({
                         text: 'Logout',
                     })}
                         ${listen('click', async () => {
-                            console.log('[logout] Wiping CSRF token...');
+                            console.info('[logout] Wiping CSRF token...');
                             await wipeCurrentCsrfToken(demoCsrfOption);
-                            console.log('[logout] CSRF token wiped, clearing user state');
+                            console.info('[logout] CSRF token wiped, clearing user state');
                             state.authenticatedUser.setValue(undefined);
                         })}
                     ></${ViraButton}>

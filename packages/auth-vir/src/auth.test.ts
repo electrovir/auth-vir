@@ -309,14 +309,12 @@ describe(handleAuthResponse.name, () => {
         );
     });
     it('handles successful auth with mock store', async () => {
-        const mockCsrfToken = generateCsrfToken({
-            days: 2,
-        });
+        const mockCsrfToken = generateCsrfToken();
 
         const {accessRecord, csrfTokenStore} = createMockCsrfTokenStore();
 
         const headers = new Headers({
-            [testCsrfHeaderName]: JSON.stringify(mockCsrfToken),
+            [testCsrfHeaderName]: mockCsrfToken,
         });
 
         await handleAuthResponse(
@@ -332,26 +330,22 @@ describe(handleAuthResponse.name, () => {
         assert.deepEquals(accessRecord, {
             ...createEmptyMockCsrfTokenStoreAccessRecord(),
             setCsrfToken: [
-                JSON.stringify(mockCsrfToken),
+                mockCsrfToken,
             ],
         });
 
         assert.strictEquals(
-            (
-                await getCurrentCsrfToken({
-                    csrfTokenStore,
-                    ...testCsrfOption,
-                })
-            ).csrfToken?.token,
-            mockCsrfToken.token,
+            await getCurrentCsrfToken({
+                csrfTokenStore,
+                ...testCsrfOption,
+            }),
+            mockCsrfToken,
         );
     });
     it('handles successful auth with default store', async () => {
-        const mockCsrfToken = generateCsrfToken({
-            days: 2,
-        });
+        const mockCsrfToken = generateCsrfToken();
         const headers = new Headers({
-            [testCsrfHeaderName]: JSON.stringify(mockCsrfToken),
+            [testCsrfHeaderName]: mockCsrfToken,
         });
         await handleAuthResponse(
             {
@@ -360,10 +354,7 @@ describe(handleAuthResponse.name, () => {
             },
             testCsrfOption,
         );
-        assert.strictEquals(
-            (await getCurrentCsrfToken(testCsrfOption)).csrfToken?.token,
-            mockCsrfToken.token,
-        );
+        assert.strictEquals(await getCurrentCsrfToken(testCsrfOption), mockCsrfToken);
     });
 });
 
@@ -421,16 +412,18 @@ describe('sign-up then login flow', () => {
         });
 
         /** Step 3: Frontend retrieves the stored CSRF token. */
-        const csrfResult = await getCurrentCsrfToken({
-            csrfTokenStore: mockStore.csrfTokenStore,
-            ...testCsrfOption,
-        });
-        const csrfToken = assertWrap.isDefined(csrfResult.csrfToken, 'CSRF token should exist.');
+        const csrfToken = assertWrap.isDefined(
+            await getCurrentCsrfToken({
+                csrfTokenStore: mockStore.csrfTokenStore,
+                ...testCsrfOption,
+            }),
+            'CSRF token should exist.',
+        );
 
         /** Step 4: Backend validates the authenticated request. */
         const requestHeaders = {
             cookie: assertWrap.isTruthy(signUpHeaders['set-cookie']),
-            [testCsrfHeaderName]: csrfToken.token,
+            [testCsrfHeaderName]: csrfToken,
         };
 
         const userIdResult = await extractUserIdFromRequestHeaders(
@@ -476,11 +469,13 @@ describe('sign-up then login flow', () => {
         );
 
         /** Step 2: Verify sign-up stored the CSRF token. */
-        const csrfAfterSignUp = await getCurrentCsrfToken({
-            csrfTokenStore: mockStore.csrfTokenStore,
-            ...testCsrfOption,
-        });
-        assert.isDefined(csrfAfterSignUp.csrfToken, 'CSRF token should exist after sign-up.');
+        assert.isDefined(
+            await getCurrentCsrfToken({
+                csrfTokenStore: mockStore.csrfTokenStore,
+                ...testCsrfOption,
+            }),
+            'CSRF token should exist after sign-up.',
+        );
 
         /**
          * Step 3: "Logout" - the CSRF token is NOT wiped anymore (recent change). Cookie still
@@ -515,19 +510,18 @@ describe('sign-up then login flow', () => {
         );
 
         /** Step 5: Verify login stored the new CSRF token. */
-        const csrfAfterLogin = await getCurrentCsrfToken({
-            csrfTokenStore: mockStore.csrfTokenStore,
-            ...testCsrfOption,
-        });
         const loginCsrfToken = assertWrap.isDefined(
-            csrfAfterLogin.csrfToken,
+            await getCurrentCsrfToken({
+                csrfTokenStore: mockStore.csrfTokenStore,
+                ...testCsrfOption,
+            }),
             'CSRF token should exist after login.',
         );
 
         /** Step 6: Verify the new CSRF token works for authentication. */
         const requestHeaders = {
             cookie: assertWrap.isTruthy(loginHeaders['set-cookie']),
-            [testCsrfHeaderName]: loginCsrfToken.token,
+            [testCsrfHeaderName]: loginCsrfToken,
         };
 
         const userIdResult = await extractUserIdFromRequestHeaders(

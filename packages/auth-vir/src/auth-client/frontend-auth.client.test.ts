@@ -105,9 +105,7 @@ describe(FrontendAuthClient.name, () => {
         );
         assert.isUndefined(mockStore.storedValue as any, 'CSRF token should not be stored yet.');
 
-        const csrfToken = generateCsrfToken({
-            hours: 20,
-        });
+        const csrfToken = generateCsrfToken();
 
         const loginResponse: Readonly<
             SelectFrom<
@@ -122,7 +120,7 @@ describe(FrontendAuthClient.name, () => {
             status: HttpStatus.Ok,
             ok: true,
             headers: new Headers({
-                [testCsrfHeaderName]: JSON.stringify(csrfToken),
+                [testCsrfHeaderName]: csrfToken,
             }),
         };
 
@@ -132,18 +130,14 @@ describe(FrontendAuthClient.name, () => {
             await frontendAuthClient.createAuthenticatedRequestInit(),
             {
                 headers: {
-                    [testCsrfHeaderName]: csrfToken.token,
+                    [testCsrfHeaderName]: csrfToken,
                 },
                 credentials: 'include',
             },
             'Should be authenticated now.',
         );
         await frontendAuthClient.verifyResponseAuth(loginResponse);
-        assert.strictEquals(
-            mockStore.storedValue,
-            JSON.stringify(csrfToken),
-            'CSRF token should be stored now.',
-        );
+        assert.strictEquals(mockStore.storedValue, csrfToken, 'CSRF token should be stored now.');
     });
 
     it('rejects failed login response', async () => {
@@ -178,24 +172,19 @@ describe(FrontendAuthClient.name, () => {
         assert.strictEquals(callCounts.authCleared, 1);
     });
 
-    it('rejects an expired CSRF token', async () => {
-        const {frontendAuthClient, callCounts} = createMockFrontendAuthClient();
+    it('stores and retrieves a CSRF token from header', async () => {
+        const {frontendAuthClient} = createMockFrontendAuthClient();
 
-        const csrfToken = generateCsrfToken({
-            hours: -2,
+        const csrfToken = generateCsrfToken();
+
+        await frontendAuthClient.handleLoginResponse({
+            ok: true,
+            headers: new Headers({
+                [testCsrfHeaderName]: csrfToken,
+            }),
         });
 
-        await assert.throws(() =>
-            frontendAuthClient.handleLoginResponse({
-                ok: true,
-                headers: new Headers({
-                    [testCsrfHeaderName]: JSON.stringify(csrfToken),
-                }),
-            }),
-        );
-        assert.strictEquals(callCounts.authCleared, 1);
-
-        assert.isUndefined(await frontendAuthClient.getCurrentCsrfToken());
+        assert.strictEquals(await frontendAuthClient.getCurrentCsrfToken(), csrfToken);
     });
 
     it('is constructable with only csrf header name option', () => {
@@ -211,21 +200,15 @@ describe(FrontendAuthClient.name, () => {
 
         assert.isUndefined(mockStore.storedValue as any, 'CSRF token should not be stored yet.');
 
-        const csrfToken = generateCsrfToken({
-            hours: 20,
-        });
+        const csrfToken = generateCsrfToken();
 
         await frontendAuthClient.handleLoginResponse({
             ok: true,
             headers: new Headers({
-                [testCsrfHeaderName]: JSON.stringify(csrfToken),
+                [testCsrfHeaderName]: csrfToken,
             }),
         });
-        assert.strictEquals(
-            mockStore.storedValue,
-            JSON.stringify(csrfToken),
-            'CSRF token should be stored now.',
-        );
+        assert.strictEquals(mockStore.storedValue, csrfToken, 'CSRF token should be stored now.');
 
         await frontendAuthClient.verifyResponseAuth({
             status: HttpStatus.Unauthorized,
@@ -234,7 +217,7 @@ describe(FrontendAuthClient.name, () => {
 
         assert.strictEquals(
             mockStore.storedValue,
-            JSON.stringify(csrfToken),
+            csrfToken,
             'CSRF token should still be stored after logout.',
         );
     });
@@ -342,17 +325,16 @@ describe(FrontendAuthClient.name, () => {
             'Should pass assumed user.',
         );
     });
-    it('returns undefined for invalid CSRF token without logging out', async () => {
+    it('returns any stored CSRF token string as-is', async () => {
         const {frontendAuthClient, callCounts, mockStore} = createMockFrontendAuthClient<{
             userId: User['id'];
         }>();
 
-        await mockStore.csrfTokenStore.setCsrfToken('INVALID }{');
+        await mockStore.csrfTokenStore.setCsrfToken('any-raw-token-string');
 
-        assert.isUndefined(await frontendAuthClient.getCurrentCsrfToken());
+        assert.strictEquals(await frontendAuthClient.getCurrentCsrfToken(), 'any-raw-token-string');
 
         assert.strictEquals(callCounts.authCleared, 0);
-        /** The invalid token remains in the store since we no longer wipe on failure. */
-        assert.strictEquals(mockStore.storedValue, 'INVALID }{');
+        assert.strictEquals(mockStore.storedValue, 'any-raw-token-string');
     });
 });

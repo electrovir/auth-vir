@@ -380,7 +380,7 @@ export class BackendAuthClient<
             });
 
             const csrfHeaderName = resolveCsrfHeaderName(this.config.csrf);
-            const {cookie, expiration} = await generateAuthCookie(
+            const {cookie} = await generateAuthCookie(
                 {
                     csrfToken: userIdResult.csrfToken,
                     userId: userIdResult.userId,
@@ -391,10 +391,7 @@ export class BackendAuthClient<
 
             return {
                 'set-cookie': cookie,
-                [csrfHeaderName]: JSON.stringify({
-                    token: userIdResult.csrfToken,
-                    expiration,
-                }),
+                [csrfHeaderName]: userIdResult.csrfToken,
             };
         } else {
             this.logForUser(
