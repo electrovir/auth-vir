@@ -65,16 +65,20 @@ async function setupBackendAuthClientTest<AssumedUserParams extends AnyObject = 
         BackendAuthClientConfig<SelectFrom<User, {id: true; name: true}>, UserId, AssumedUserParams>
     >;
 }) {
-    const {prismaClient} = await createPrismaClient(PrismaDatabaseEngine.Postgres, PrismaClient, {
-        migrationsDirPath: testPrismaMigrationsDirPath,
-        schemaPath: testPrismaSchemaFilePath,
-        connection: {
-            dev: {
-                resetDatabase: true,
-                test: testContext,
+    const {prismaClient, adapter} = await createPrismaClient(
+        PrismaDatabaseEngine.Postgres,
+        PrismaClient,
+        {
+            migrationsDirPath: testPrismaMigrationsDirPath,
+            schemaPath: testPrismaSchemaFilePath,
+            connection: {
+                dev: {
+                    resetDatabase: true,
+                    test: testContext,
+                },
             },
         },
-    });
+    );
 
     await prismaApi.client.addData({
         data: seedDataOverride || defaultMockSeedData,
@@ -118,6 +122,7 @@ async function setupBackendAuthClientTest<AssumedUserParams extends AnyObject = 
 
     return {
         prismaClient,
+        adapter,
         backendAuthClient,
         mockUser,
     };
@@ -125,126 +130,151 @@ async function setupBackendAuthClientTest<AssumedUserParams extends AnyObject = 
 
 describe(BackendAuthClient.name, () => {
     it('gets a secure user', async (testContext) => {
-        const {backendAuthClient, mockUser} = await setupBackendAuthClientTest({
-            testContext,
-        });
+        const {backendAuthClient, mockUser, prismaClient, adapter} =
+            await setupBackendAuthClientTest({
+                testContext,
+            });
 
-        assert.isDefined(mockUser, 'Failed to find mock user.');
+        try {
+            assert.isDefined(mockUser, 'Failed to find mock user.');
 
-        const cookieHeaders = await backendAuthClient.createLoginHeaders({
-            isSignUpCookie: false,
-            requestHeaders: {},
-            userId: mockUser.id,
-        });
+            const cookieHeaders = await backendAuthClient.createLoginHeaders({
+                isSignUpCookie: false,
+                requestHeaders: {},
+                userId: mockUser.id,
+            });
 
-        const requestHeaders: IncomingHttpHeaders = {
-            [testCsrfHeaderName]: extractCsrfTokenFromSetCookies(cookieHeaders),
-            cookie: setCookieHeaderToRegularCookieHeader(cookieHeaders),
-        };
+            const requestHeaders: IncomingHttpHeaders = {
+                [testCsrfHeaderName]: extractCsrfTokenFromSetCookies(cookieHeaders),
+                cookie: setCookieHeaderToRegularCookieHeader(cookieHeaders),
+            };
 
-        const userResult = await backendAuthClient.getSecureUser({
-            requestHeaders,
-            isSignUpCookie: false,
-            allowUserAuthRefresh: true,
-        });
-        assert.isDefined(userResult, 'No user result');
-
-        const setCookies = ensureArray(userResult.responseHeaders['set-cookie'] || []);
-        assert.isLengthExactly(setCookies, 1, 'should only have the CSRF cookie, no auth refresh');
-        assert.isTrue(
-            assertWrap.isDefined(setCookies[0]).startsWith(`${AuthCookie.Csrf}=`),
-            'the only set-cookie should be the CSRF cookie',
-        );
-        assert.deepEquals(userResult.user, mockUser);
-        assert.tsType(userResult.user).equals<{
-            id: UserId;
-            name: string;
-        }>();
-    });
-    it('gets an insecure user', async (testContext) => {
-        const {backendAuthClient, mockUser} = await setupBackendAuthClientTest({
-            testContext,
-        });
-
-        assert.isDefined(mockUser, 'Failed to find mock user.');
-
-        const cookieHeaders = await backendAuthClient.createLoginHeaders({
-            isSignUpCookie: false,
-            requestHeaders: {},
-            userId: mockUser.id,
-        });
-
-        /** Intentionally without the CSRF token header. */
-        const requestHeaders: IncomingHttpHeaders = {
-            cookie: setCookieHeaderToRegularCookieHeader(cookieHeaders),
-        };
-
-        const secureUserResult = await backendAuthClient.getSecureUser({
-            requestHeaders,
-            isSignUpCookie: false,
-            allowUserAuthRefresh: true,
-        });
-        assert.isUndefined(secureUserResult, 'Without a CSRF token, the secure user should fail.');
-
-        // eslint-disable-next-line @typescript-eslint/no-deprecated
-        const insecureUserResult = await backendAuthClient.getInsecureUser({
-            requestHeaders,
-            allowUserAuthRefresh: true,
-        });
-        assert.isDefined(insecureUserResult, 'No insecure user result.');
-
-        assert.deepEquals(insecureUserResult.user, mockUser);
-    });
-    it('fails after session timeout', async (testContext) => {
-        const {backendAuthClient, mockUser} = await setupBackendAuthClientTest({
-            testContext,
-            authClientConfigOverrides: {
-                userSessionIdleTimeout: {
-                    seconds: 5,
-                },
-                sessionRefreshStartTime: {
-                    seconds: 0,
-                },
-                allowedClockSkew: {
-                    seconds: 0,
-                },
-            },
-        });
-
-        assert.isDefined(mockUser, 'Failed to find mock user.');
-
-        const cookieHeaders = await backendAuthClient.createLoginHeaders({
-            isSignUpCookie: false,
-            requestHeaders: {},
-            userId: mockUser.id,
-        });
-
-        const requestHeaders: IncomingHttpHeaders = {
-            [testCsrfHeaderName]: extractCsrfTokenFromSetCookies(cookieHeaders),
-            cookie: setCookieHeaderToRegularCookieHeader(cookieHeaders),
-        };
-
-        const userResult = await backendAuthClient.getSecureUser({
-            requestHeaders,
-            isSignUpCookie: false,
-            allowUserAuthRefresh: true,
-        });
-        assert.isDefined(userResult, 'No user result');
-
-        assert.deepEquals(userResult.user, mockUser);
-        assert.isNotEmpty(userResult.responseHeaders, 'cookie refresh headers should be set');
-
-        await wait({
-            seconds: 8,
-        });
-
-        assert.isUndefined(
-            await backendAuthClient.getSecureUser({
+            const userResult = await backendAuthClient.getSecureUser({
                 requestHeaders,
                 isSignUpCookie: false,
                 allowUserAuthRefresh: true,
-            }),
-            'User session should have timed out.',
-        );
+            });
+            assert.isDefined(userResult, 'No user result');
+
+            const setCookies = ensureArray(userResult.responseHeaders['set-cookie'] || []);
+            assert.isLengthExactly(
+                setCookies,
+                1,
+                'should only have the CSRF cookie, no auth refresh',
+            );
+            assert.isTrue(
+                assertWrap.isDefined(setCookies[0]).startsWith(`${AuthCookie.Csrf}=`),
+                'the only set-cookie should be the CSRF cookie',
+            );
+            assert.deepEquals(userResult.user, mockUser);
+            assert.tsType(userResult.user).equals<{
+                id: UserId;
+                name: string;
+            }>();
+        } finally {
+            await prismaClient.$disconnect();
+            await adapter.client.close();
+        }
+    });
+    it('gets an insecure user', async (testContext) => {
+        const {backendAuthClient, mockUser, prismaClient, adapter} =
+            await setupBackendAuthClientTest({
+                testContext,
+            });
+
+        try {
+            assert.isDefined(mockUser, 'Failed to find mock user.');
+
+            const cookieHeaders = await backendAuthClient.createLoginHeaders({
+                isSignUpCookie: false,
+                requestHeaders: {},
+                userId: mockUser.id,
+            });
+
+            /** Intentionally without the CSRF token header. */
+            const requestHeaders: IncomingHttpHeaders = {
+                cookie: setCookieHeaderToRegularCookieHeader(cookieHeaders),
+            };
+
+            const secureUserResult = await backendAuthClient.getSecureUser({
+                requestHeaders,
+                isSignUpCookie: false,
+                allowUserAuthRefresh: true,
+            });
+            assert.isUndefined(
+                secureUserResult,
+                'Without a CSRF token, the secure user should fail.',
+            );
+
+            // eslint-disable-next-line @typescript-eslint/no-deprecated
+            const insecureUserResult = await backendAuthClient.getInsecureUser({
+                requestHeaders,
+                allowUserAuthRefresh: true,
+            });
+            assert.isDefined(insecureUserResult, 'No insecure user result.');
+
+            assert.deepEquals(insecureUserResult.user, mockUser);
+        } finally {
+            await prismaClient.$disconnect();
+            await adapter.client.close();
+        }
+    });
+    it('fails after session timeout', async (testContext) => {
+        const {backendAuthClient, mockUser, prismaClient, adapter} =
+            await setupBackendAuthClientTest({
+                testContext,
+                authClientConfigOverrides: {
+                    userSessionIdleTimeout: {
+                        seconds: 5,
+                    },
+                    sessionRefreshStartTime: {
+                        seconds: 0,
+                    },
+                    allowedClockSkew: {
+                        seconds: 0,
+                    },
+                },
+            });
+
+        try {
+            assert.isDefined(mockUser, 'Failed to find mock user.');
+
+            const cookieHeaders = await backendAuthClient.createLoginHeaders({
+                isSignUpCookie: false,
+                requestHeaders: {},
+                userId: mockUser.id,
+            });
+
+            const requestHeaders: IncomingHttpHeaders = {
+                [testCsrfHeaderName]: extractCsrfTokenFromSetCookies(cookieHeaders),
+                cookie: setCookieHeaderToRegularCookieHeader(cookieHeaders),
+            };
+
+            const userResult = await backendAuthClient.getSecureUser({
+                requestHeaders,
+                isSignUpCookie: false,
+                allowUserAuthRefresh: true,
+            });
+            assert.isDefined(userResult, 'No user result');
+
+            assert.deepEquals(userResult.user, mockUser);
+            assert.isNotEmpty(userResult.responseHeaders, 'cookie refresh headers should be set');
+
+            await wait({
+                seconds: 8,
+            });
+
+            assert.isUndefined(
+                await backendAuthClient.getSecureUser({
+                    requestHeaders,
+                    isSignUpCookie: false,
+                    allowUserAuthRefresh: true,
+                }),
+                'User session should have timed out.',
+            );
+        } finally {
+            await prismaClient.$disconnect();
+            await adapter.client.close();
+        }
     });
 });

@@ -1,6 +1,6 @@
 {
     "name": "auth-vir",
-    "version": "5.0.0",
+    "version": "5.0.1",
     "description": "Auth made easy and secure via JWT cookies, CSRF tokens, and password hashing helpers.",
     "keywords": [
         "auth",
@@ -41,8 +41,8 @@
         "test:web": "virmator test web"
     },
     "dependencies": {
-        "@augment-vir/assert": "^31.68.1",
-        "@augment-vir/common": "^31.68.1",
+        "@augment-vir/assert": "^31.68.2",
+        "@augment-vir/common": "^31.68.2",
         "date-vir": "^8.2.1",
         "detect-activity": "^1.0.0",
         "hash-wasm": "^4.12.0",
@@ -52,9 +52,9 @@
         "url-vir": "^2.1.7"
     },
     "devDependencies": {
-        "@augment-vir/test": "^31.68.1",
+        "@augment-vir/test": "^31.68.2",
         "@prisma/client": "^6.19.2",
-        "@types/node": "^25.3.3",
+        "@types/node": "^25.5.0",
         "@web/dev-server-esbuild": "^1.0.5",
         "@web/test-runner": "^0.20.2",
         "@web/test-runner-commands": "^0.9.0",
