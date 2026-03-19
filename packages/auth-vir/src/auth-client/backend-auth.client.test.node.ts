@@ -1,4 +1,4 @@
-import {assert, check} from '@augment-vir/assert';
+import {assert, assertWrap, check} from '@augment-vir/assert';
 import {type AnyObject, ensureArray, filterMap, type SelectFrom, wait} from '@augment-vir/common';
 import {describe, it, type UniversalTestContext} from '@augment-vir/test';
 import {type IncomingHttpHeaders, type OutgoingHttpHeaders} from 'node:http';
@@ -9,6 +9,7 @@ import {
     PrismaDatabaseEngine,
 } from 'prisma-vir';
 import {type EmptyObject} from 'type-fest';
+import {AuthCookie} from '../cookie.js';
 import {type CsrfHeaderNameOption, resolveCsrfHeaderName} from '../csrf-token.js';
 import {testPrismaMigrationsDirPath, testPrismaSchemaFilePath} from '../file-paths.mock.js';
 import {type Prisma, PrismaClient, type User} from '../generated/client.js';
@@ -30,6 +31,19 @@ function setCookieHeaderToRegularCookieHeader(headers: Readonly<OutgoingHttpHead
         (cookie) => cookie.split(';')[0]?.trim(),
         check.isTruthy,
     ).join('; ');
+}
+
+/**
+ * In production, the browser reads the CSRF cookie from `document.cookie`. In Node.js tests there
+ * is no browser, so we parse it out of the Set-Cookie headers manually.
+ */
+function extractCsrfTokenFromSetCookies(headers: Readonly<OutgoingHttpHeaders>): string {
+    const setCookies = ensureArray(headers['set-cookie'] || []);
+    const csrfCookie = assertWrap.isTruthy(
+        setCookies.find((cookie) => cookie.startsWith(AuthCookie.Csrf)),
+        'Missing CSRF Set-Cookie.',
+    );
+    return assertWrap.isTruthy(csrfCookie.split(';')[0]?.split('=')[1]);
 }
 
 const defaultMockSeedData: PrismaAddModelData<PrismaClient, Prisma.TypeMap> = {
@@ -124,7 +138,7 @@ describe(BackendAuthClient.name, () => {
         });
 
         const requestHeaders: IncomingHttpHeaders = {
-            [testCsrfHeaderName]: String(cookieHeaders[testCsrfHeaderName]),
+            [testCsrfHeaderName]: extractCsrfTokenFromSetCookies(cookieHeaders),
             cookie: setCookieHeaderToRegularCookieHeader(cookieHeaders),
         };
 
@@ -135,7 +149,12 @@ describe(BackendAuthClient.name, () => {
         });
         assert.isDefined(userResult, 'No user result');
 
-        assert.isEmpty(userResult.responseHeaders, 'cookie refresh headers should not be set');
+        const setCookies = ensureArray(userResult.responseHeaders['set-cookie'] || []);
+        assert.isLengthExactly(setCookies, 1, 'should only have the CSRF cookie, no auth refresh');
+        assert.isTrue(
+            assertWrap.isDefined(setCookies[0]).startsWith(`${AuthCookie.Csrf}=`),
+            'the only set-cookie should be the CSRF cookie',
+        );
         assert.deepEquals(userResult.user, mockUser);
         assert.tsType(userResult.user).equals<{
             id: UserId;
@@ -201,7 +220,7 @@ describe(BackendAuthClient.name, () => {
         });
 
         const requestHeaders: IncomingHttpHeaders = {
-            [testCsrfHeaderName]: String(cookieHeaders[testCsrfHeaderName]),
+            [testCsrfHeaderName]: extractCsrfTokenFromSetCookies(cookieHeaders),
             cookie: setCookieHeaderToRegularCookieHeader(cookieHeaders),
         };
 

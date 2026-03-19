@@ -44,5 +44,13 @@ export const demoService = defineService({
             },
             responseDataShape: userResponseShape,
         },
+        /** Log out and clear auth cookies. */
+        '/logout': {
+            methods: {
+                [HttpMethod.Post]: true,
+            },
+            requestDataShape: undefined,
+            responseDataShape: undefined,
+        },
     },
 });

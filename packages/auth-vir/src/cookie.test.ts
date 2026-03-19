@@ -1,6 +1,6 @@
 import {assert} from '@augment-vir/assert';
 import {describe, it} from '@augment-vir/test';
-import {clearAuthCookie, extractCookieJwt, generateAuthCookie} from './cookie.js';
+import {AuthCookie, clearAuthCookie, extractCookieJwt, generateAuthCookie} from './cookie.js';
 import {generateNewJwtKeys, parseJwtKeys} from './jwt/jwt-keys.js';
 import {mockJwtParams} from './jwt/jwt.mock.js';
 import {type JwtUserData} from './jwt/user-jwt.js';
@@ -39,14 +39,14 @@ describe(clearAuthCookie.name, () => {
             'auth=redacted; Domain=my origin; HttpOnly; Path=/; SameSite=Strict; MAX-AGE=0',
         );
     });
-    it('uses a custom cookie name', () => {
+    it('uses a sign-up cookie name', () => {
         assert.strictEquals(
             clearAuthCookie({
                 hostOrigin: 'my origin',
-                cookieName: 'fake',
+                authCookie: AuthCookie.SignUp,
                 isDev: true,
             }),
-            'fake=redacted; Domain=my origin; HttpOnly; Path=/; SameSite=Strict; MAX-AGE=0',
+            'sign-up=redacted; Domain=my origin; HttpOnly; Path=/; SameSite=Strict; MAX-AGE=0',
         );
     });
 });
@@ -57,10 +57,14 @@ describe('cookie', () => {
 
         assert.deepEquals(
             (
-                await extractCookieJwt((await generateAuthCookie(mockJwt, cookieParams)).cookie, {
-                    ...mockJwtParams,
-                    jwtKeys,
-                })
+                await extractCookieJwt(
+                    await generateAuthCookie(mockJwt, cookieParams),
+                    {
+                        ...mockJwtParams,
+                        jwtKeys,
+                    },
+                    AuthCookie.Auth,
+                )
             )?.data,
             mockJwt,
         );
@@ -71,26 +75,26 @@ describe(generateAuthCookie.name, () => {
     it('generates a secure cookie by default', async () => {
         const {mockJwt, cookieParams} = await getCookieParams();
 
-        const {cookie} = await generateAuthCookie(mockJwt, cookieParams);
+        const cookie = await generateAuthCookie(mockJwt, cookieParams);
         assert.endsWith(cookie, '; Secure');
     });
     it('can generate an insecure cookie', async () => {
         const {mockJwt, cookieParams} = await getCookieParams();
 
-        const {cookie} = await generateAuthCookie(mockJwt, {
+        const cookie = await generateAuthCookie(mockJwt, {
             ...cookieParams,
             isDev: true,
         });
         assert.lacksValue(cookie, 'Secure');
     });
-    it('can use a custom cookie name', async () => {
+    it('can use a sign-up cookie name', async () => {
         const {mockJwt, cookieParams} = await getCookieParams();
 
-        const {cookie} = await generateAuthCookie(mockJwt, {
+        const cookie = await generateAuthCookie(mockJwt, {
             ...cookieParams,
-            cookieName: 'my-name',
+            authCookie: AuthCookie.SignUp,
         });
         assert.lacksValue(cookie, 'auth=');
-        assert.hasValue(cookie, 'my-name=');
+        assert.hasValue(cookie, `${AuthCookie.SignUp}=`);
     });
 });

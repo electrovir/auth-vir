@@ -1,5 +1,6 @@
 import {type ClientRequest, type ServerResponse} from 'node:http';
 import {
+    AuthCookie,
     doesPasswordMatchHash,
     extractUserIdFromRequestHeaders,
     generateNewJwtKeys,
@@ -41,8 +42,15 @@ export async function handleLogin(
         throw new Error('Credentials mismatch.');
     }
 
-    const authHeaders = await generateSuccessfulLoginHeaders(user.id, cookieParams, csrfOption);
-    response.setHeaders(new Headers(authHeaders));
+    const authHeaders = await generateSuccessfulLoginHeaders(user.id, cookieParams);
+    Object.entries(authHeaders).forEach(
+        ([
+            key,
+            value,
+        ]) => {
+            response.setHeader(key, value);
+        },
+    );
 }
 
 /**
@@ -57,8 +65,15 @@ export async function createUser(
 ) {
     const newUser = await createUserInDatabase(userRequestData);
 
-    const authHeaders = await generateSuccessfulLoginHeaders(newUser.id, cookieParams, csrfOption);
-    response.setHeaders(new Headers(authHeaders));
+    const authHeaders = await generateSuccessfulLoginHeaders(newUser.id, cookieParams);
+    Object.entries(authHeaders).forEach(
+        ([
+            key,
+            value,
+        ]) => {
+            response.setHeader(key, value);
+        },
+    );
 }
 
 /**
@@ -68,7 +83,12 @@ export async function createUser(
  */
 export async function getAuthenticatedUser(request: ClientRequest) {
     const userId = (
-        await extractUserIdFromRequestHeaders<MyUserId>(request.getHeaders(), jwtParams, csrfOption)
+        await extractUserIdFromRequestHeaders<MyUserId>(
+            request.getHeaders(),
+            jwtParams,
+            csrfOption,
+            AuthCookie.Auth,
+        )
     )?.userId;
     const user = userId ? findUserInDatabaseById(userId) : undefined;
 

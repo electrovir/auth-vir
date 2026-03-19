@@ -6,6 +6,7 @@ import {startService} from '@rest-vir/run-service';
 import {
     doesPasswordMatchHash,
     extractUserIdFromRequestHeaders,
+    generateLogoutHeaders,
     generateNewJwtKeys,
     generateSuccessfulLoginHeaders,
     hashPassword,
@@ -44,7 +45,10 @@ const jwtParams: Readonly<Omit<CreateJwtParams, 'jwtKeys'>> = {
 
 const endpointAuthConfig = {
     /** These endpoints require an authenticated user to be making the request. */
-    requiresAuth: ['/user'],
+    requiresAuth: [
+        '/user',
+        '/logout',
+    ],
     /** These endpoints require a _not_ authenticated user to be making the request. */
     requiresUnauth: [
         '/login',
@@ -209,31 +213,19 @@ const implementedService = implementService({
                 };
             }
 
-            const loginHeaders = await generateSuccessfulLoginHeaders(
-                userMatch.id,
-                {
-                    cookieDuration: {
-                        hours: 2,
-                    },
-                    hostOrigin: server.serviceOrigin,
-                    jwtParams: {
-                        ...jwtParams,
-                        jwtKeys,
-                    },
-                    isDev: true,
+            const loginHeaders = await generateSuccessfulLoginHeaders(userMatch.id, {
+                cookieDuration: {
+                    hours: 2,
                 },
-                demoCsrfOption,
-            );
+                hostOrigin: server.serviceOrigin,
+                jwtParams: {
+                    ...jwtParams,
+                    jwtKeys,
+                },
+                isDev: true,
+            });
 
-            log.faint('Login response headers:');
-            Object.entries(loginHeaders).forEach(
-                ([
-                    key,
-                    value,
-                ]) => {
-                    log.faint(`  ${key}:`, value.slice(0, 100) + '...');
-                },
-            );
+            log.faint('Login response headers generated');
 
             return {
                 statusCode: HttpStatus.Ok,
@@ -277,31 +269,19 @@ const implementedService = implementService({
             log.faint('New user created:', newUser.id, newUser.username);
             log.faint('Total users in DB:', mockDatabase.users.length);
 
-            const signUpHeaders = await generateSuccessfulLoginHeaders(
-                newUser.id,
-                {
-                    cookieDuration: {
-                        hours: 2,
-                    },
-                    hostOrigin: server.serviceOrigin,
-                    jwtParams: {
-                        ...jwtParams,
-                        jwtKeys,
-                    },
-                    isDev: true,
+            const signUpHeaders = await generateSuccessfulLoginHeaders(newUser.id, {
+                cookieDuration: {
+                    hours: 2,
                 },
-                demoCsrfOption,
-            );
+                hostOrigin: server.serviceOrigin,
+                jwtParams: {
+                    ...jwtParams,
+                    jwtKeys,
+                },
+                isDev: true,
+            });
 
-            log.faint('Sign-up response headers:');
-            Object.entries(signUpHeaders).forEach(
-                ([
-                    key,
-                    value,
-                ]) => {
-                    log.faint(`  ${key}:`, value.slice(0, 100) + '...');
-                },
-            );
+            log.faint('Sign-up response headers generated');
 
             return {
                 statusCode: HttpStatus.Ok,
@@ -342,6 +322,17 @@ const implementedService = implementService({
                     name: userMatch.name,
                     username: userMatch.username,
                 },
+            };
+        },
+        '/logout'({server}) {
+            log.faint('\n=== /logout endpoint ===');
+
+            return {
+                statusCode: HttpStatus.Ok,
+                headers: generateLogoutHeaders({
+                    hostOrigin: server.serviceOrigin,
+                    isDev: true,
+                }),
             };
         },
     },

@@ -7,16 +7,17 @@ import {
     extractUserIdFromRequestHeaders,
     generateLogoutHeaders,
     generateSuccessfulLoginHeaders,
-    handleAuthResponse,
     insecureExtractUserIdFromCookieAlone,
 } from './auth.js';
-import {generateCsrfToken, getCurrentCsrfToken, resolveCsrfHeaderName} from './csrf-token.js';
+import {AuthCookie} from './cookie.js';
+import {getCurrentCsrfToken, resolveCsrfHeaderName} from './csrf-token.js';
+import {
+    clearCsrfCookieInBrowser,
+    setCookiesToRequestCookie,
+    simulateBrowserCookieStorage,
+} from './csrf-token.mock.js';
 import {generateNewJwtKeys, parseJwtKeys} from './jwt/jwt-keys.js';
 import {mockJwtParams} from './jwt/jwt.mock.js';
-import {
-    createEmptyMockCsrfTokenStoreAccessRecord,
-    createMockCsrfTokenStore,
-} from './mock-csrf-token-store.js';
 
 const testCsrfOption = {
     csrfHeaderPrefix: 'test',
@@ -24,31 +25,33 @@ const testCsrfOption = {
 const testCsrfHeaderName = resolveCsrfHeaderName(testCsrfOption);
 
 const mockUserId = 'mock-id';
+
 async function setupHeaders() {
+    clearCsrfCookieInBrowser();
     const jwtKeys = await parseJwtKeys(await generateNewJwtKeys());
 
-    const serverHeaders = await generateSuccessfulLoginHeaders(
-        mockUserId,
-        {
-            cookieDuration: {
-                days: 20,
-            },
-            hostOrigin: 'https://www.example.com',
-            jwtParams: {
-                ...mockJwtParams,
-                jwtKeys,
-            },
+    const serverHeaders = await generateSuccessfulLoginHeaders(mockUserId, {
+        cookieDuration: {
+            days: 20,
         },
-        testCsrfOption,
-    );
+        hostOrigin: 'https://www.example.com',
+        jwtParams: {
+            ...mockJwtParams,
+            jwtKeys,
+        },
+    });
+
+    const setCookies = assertWrap.isArray(serverHeaders['set-cookie']);
+    simulateBrowserCookieStorage(setCookies);
 
     const clientHeaders = {
-        cookie: assertWrap.isTruthy(serverHeaders['set-cookie']),
-        [testCsrfHeaderName]: assertWrap.isTruthy(serverHeaders[testCsrfHeaderName]),
+        cookie: setCookiesToRequestCookie(setCookies),
+        [testCsrfHeaderName]: assertWrap.isTruthy(getCurrentCsrfToken()),
     };
 
     return {
         headers: clientHeaders,
+        setCookies,
         jwtParams: {
             ...mockJwtParams,
             jwtKeys,
@@ -61,7 +64,14 @@ describe(extractUserIdFromRequestHeaders.name, () => {
         const {headers, jwtParams} = await setupHeaders();
 
         assert.strictEquals(
-            (await extractUserIdFromRequestHeaders(headers, jwtParams, testCsrfOption))?.userId,
+            (
+                await extractUserIdFromRequestHeaders(
+                    headers,
+                    jwtParams,
+                    testCsrfOption,
+                    AuthCookie.Auth,
+                )
+            )?.userId,
             mockUserId,
         );
     });
@@ -79,6 +89,7 @@ describe(extractUserIdFromRequestHeaders.name, () => {
                     },
                     jwtParams,
                     testCsrfOption,
+                    AuthCookie.Auth,
                 )
             )?.userId,
             mockUserId,
@@ -90,8 +101,14 @@ describe(extractUserIdFromRequestHeaders.name, () => {
         const headersObject = new Headers(headers);
 
         assert.strictEquals(
-            (await extractUserIdFromRequestHeaders(headersObject, jwtParams, testCsrfOption))
-                ?.userId,
+            (
+                await extractUserIdFromRequestHeaders(
+                    headersObject,
+                    jwtParams,
+                    testCsrfOption,
+                    AuthCookie.Auth,
+                )
+            )?.userId,
             mockUserId,
         );
     });
@@ -103,6 +120,7 @@ describe(extractUserIdFromRequestHeaders.name, () => {
                 omitObjectKeys(headers, ['cookie']),
                 jwtParams,
                 testCsrfOption,
+                AuthCookie.Auth,
             ),
         );
     });
@@ -114,6 +132,7 @@ describe(extractUserIdFromRequestHeaders.name, () => {
                 new Headers(omitObjectKeys(headers, ['cookie'])),
                 jwtParams,
                 testCsrfOption,
+                AuthCookie.Auth,
             ),
         );
     });
@@ -125,6 +144,7 @@ describe(extractUserIdFromRequestHeaders.name, () => {
                 omitObjectKeys(headers, [testCsrfHeaderName]),
                 jwtParams,
                 testCsrfOption,
+                AuthCookie.Auth,
             ),
         );
     });
@@ -139,6 +159,7 @@ describe(extractUserIdFromRequestHeaders.name, () => {
                 },
                 jwtParams,
                 testCsrfOption,
+                AuthCookie.Auth,
             ),
         );
     });
@@ -159,6 +180,7 @@ describe(extractUserIdFromRequestHeaders.name, () => {
                 },
                 jwtParams,
                 testCsrfOption,
+                AuthCookie.Auth,
             ),
         );
     });
@@ -178,6 +200,7 @@ describe(extractUserIdFromRequestHeaders.name, () => {
                 },
                 jwtParams,
                 testCsrfOption,
+                AuthCookie.Auth,
             ),
         );
     });
@@ -191,6 +214,7 @@ describe(insecureExtractUserIdFromCookieAlone.name, () => {
             await insecureExtractUserIdFromCookieAlone(
                 omitObjectKeys(headers, ['cookie']),
                 jwtParams,
+                AuthCookie.Auth,
             ),
         );
     });
@@ -202,6 +226,7 @@ describe(insecureExtractUserIdFromCookieAlone.name, () => {
                 await insecureExtractUserIdFromCookieAlone(
                     omitObjectKeys(headers, [testCsrfHeaderName]),
                     jwtParams,
+                    AuthCookie.Auth,
                 )
             )?.userId,
             mockUserId,
@@ -211,7 +236,8 @@ describe(insecureExtractUserIdFromCookieAlone.name, () => {
         const {headers, jwtParams} = await setupHeaders();
 
         assert.strictEquals(
-            (await insecureExtractUserIdFromCookieAlone(headers, jwtParams))?.userId,
+            (await insecureExtractUserIdFromCookieAlone(headers, jwtParams, AuthCookie.Auth))
+                ?.userId,
             mockUserId,
         );
     });
@@ -231,6 +257,7 @@ describe(insecureExtractUserIdFromCookieAlone.name, () => {
                     cookie,
                 },
                 jwtParams,
+                AuthCookie.Auth,
             ),
         );
     });
@@ -249,112 +276,9 @@ describe(insecureExtractUserIdFromCookieAlone.name, () => {
                     cookie,
                 },
                 jwtParams,
+                AuthCookie.Auth,
             ),
         );
-    });
-});
-
-describe(handleAuthResponse.name, () => {
-    it('handles failed auth with mock store', async () => {
-        const {accessRecord, csrfTokenStore} = createMockCsrfTokenStore();
-
-        const headers = new Headers();
-
-        // fails because `ok` is false
-        await handleAuthResponse(
-            {
-                ok: false,
-                headers,
-            },
-            {
-                csrfTokenStore,
-                ...testCsrfOption,
-            },
-        );
-        // fails because CSRF header is missing
-        await assert.throws(() =>
-            handleAuthResponse(
-                {
-                    ok: true,
-                    headers,
-                },
-                {
-                    csrfTokenStore,
-                    ...testCsrfOption,
-                },
-            ),
-        );
-        assert.deepEquals(accessRecord, createEmptyMockCsrfTokenStoreAccessRecord());
-    });
-    it('handles failed auth with default store', async () => {
-        const headers = new Headers();
-
-        // fails because `ok` is false
-        await handleAuthResponse(
-            {
-                ok: false,
-                headers,
-            },
-            testCsrfOption,
-        );
-        // fails because CSRF header is missing
-        await assert.throws(() =>
-            handleAuthResponse(
-                {
-                    ok: true,
-                    headers,
-                },
-                testCsrfOption,
-            ),
-        );
-    });
-    it('handles successful auth with mock store', async () => {
-        const mockCsrfToken = generateCsrfToken();
-
-        const {accessRecord, csrfTokenStore} = createMockCsrfTokenStore();
-
-        const headers = new Headers({
-            [testCsrfHeaderName]: mockCsrfToken,
-        });
-
-        await handleAuthResponse(
-            {
-                ok: true,
-                headers,
-            },
-            {
-                csrfTokenStore,
-                ...testCsrfOption,
-            },
-        );
-        assert.deepEquals(accessRecord, {
-            ...createEmptyMockCsrfTokenStoreAccessRecord(),
-            setCsrfToken: [
-                mockCsrfToken,
-            ],
-        });
-
-        assert.strictEquals(
-            await getCurrentCsrfToken({
-                csrfTokenStore,
-                ...testCsrfOption,
-            }),
-            mockCsrfToken,
-        );
-    });
-    it('handles successful auth with default store', async () => {
-        const mockCsrfToken = generateCsrfToken();
-        const headers = new Headers({
-            [testCsrfHeaderName]: mockCsrfToken,
-        });
-        await handleAuthResponse(
-            {
-                ok: true,
-                headers,
-            },
-            testCsrfOption,
-        );
-        assert.strictEquals(await getCurrentCsrfToken(testCsrfOption), mockCsrfToken);
     });
 });
 
@@ -363,12 +287,13 @@ describe(generateLogoutHeaders.name, () => {
         assert.deepEquals(
             generateLogoutHeaders({
                 hostOrigin: 'my-origin',
-                cookieName: 'my-name',
                 isDev: true,
             }),
             {
-                'set-cookie':
-                    'my-name=redacted; Domain=my-origin; HttpOnly; Path=/; SameSite=Strict; MAX-AGE=0',
+                'set-cookie': [
+                    'auth=redacted; Domain=my-origin; HttpOnly; Path=/; SameSite=Strict; MAX-AGE=0',
+                    'auth-vir-csrf=redacted; Domain=my-origin; Path=/; SameSite=Strict; MAX-AGE=0',
+                ],
             },
         );
     });
@@ -376,53 +301,31 @@ describe(generateLogoutHeaders.name, () => {
 
 describe('sign-up then login flow', () => {
     it('signs up, stores CSRF, and validates authenticated request', async () => {
+        clearCsrfCookieInBrowser();
         const jwtKeys = await parseJwtKeys(await generateNewJwtKeys());
-        const mockStore = createMockCsrfTokenStore();
 
-        /** Step 1: Backend generates sign-up response headers. */
-        const signUpHeaders = await generateSuccessfulLoginHeaders(
-            mockUserId,
-            {
-                cookieDuration: {
-                    hours: 2,
-                },
-                hostOrigin: 'https://www.example.com',
-                jwtParams: {
-                    ...mockJwtParams,
-                    jwtKeys,
-                },
+        /** Step 1: Backend generates sign-up response headers (both cookies). */
+        const signUpHeaders = await generateSuccessfulLoginHeaders(mockUserId, {
+            cookieDuration: {
+                hours: 2,
             },
-            testCsrfOption,
-        );
-
-        /** Step 2: Frontend handles the response (stores CSRF token). */
-        const signUpResponse = new Response(
-            JSON.stringify({
-                username: 'test',
-            }),
-            {
-                status: 200,
-                headers: signUpHeaders,
+            hostOrigin: 'https://www.example.com',
+            jwtParams: {
+                ...mockJwtParams,
+                jwtKeys,
             },
-        );
-
-        await handleAuthResponse(signUpResponse, {
-            csrfTokenStore: mockStore.csrfTokenStore,
-            ...testCsrfOption,
         });
 
-        /** Step 3: Frontend retrieves the stored CSRF token. */
-        const csrfToken = assertWrap.isDefined(
-            await getCurrentCsrfToken({
-                csrfTokenStore: mockStore.csrfTokenStore,
-                ...testCsrfOption,
-            }),
-            'CSRF token should exist.',
-        );
+        /** Step 2: Simulate browser storing the CSRF cookie from Set-Cookie. */
+        const setCookies = assertWrap.isArray(signUpHeaders['set-cookie']);
+        simulateBrowserCookieStorage(setCookies);
+
+        /** Step 3: Frontend retrieves the stored CSRF token from the cookie. */
+        const csrfToken = assertWrap.isDefined(getCurrentCsrfToken(), 'CSRF token should exist.');
 
         /** Step 4: Backend validates the authenticated request. */
         const requestHeaders = {
-            cookie: assertWrap.isTruthy(signUpHeaders['set-cookie']),
+            cookie: setCookiesToRequestCookie(setCookies),
             [testCsrfHeaderName]: csrfToken,
         };
 
@@ -433,49 +336,31 @@ describe('sign-up then login flow', () => {
                 jwtKeys,
             },
             testCsrfOption,
+            AuthCookie.Auth,
         );
         assert.strictEquals(userIdResult?.userId, mockUserId);
     });
 
     it('can login after sign-up and logout', async () => {
+        clearCsrfCookieInBrowser();
         const jwtKeys = await parseJwtKeys(await generateNewJwtKeys());
-        const mockStore = createMockCsrfTokenStore();
+        const cookieConfig = {
+            cookieDuration: {
+                hours: 2,
+            },
+            hostOrigin: 'https://www.example.com',
+            jwtParams: {
+                ...mockJwtParams,
+                jwtKeys,
+            },
+        };
 
         /** Step 1: Sign up. */
-        const signUpHeaders = await generateSuccessfulLoginHeaders(
-            mockUserId,
-            {
-                cookieDuration: {
-                    hours: 2,
-                },
-                hostOrigin: 'https://www.example.com',
-                jwtParams: {
-                    ...mockJwtParams,
-                    jwtKeys,
-                },
-            },
-            testCsrfOption,
-        );
-
-        await handleAuthResponse(
-            new Response(null, {
-                status: 200,
-                headers: signUpHeaders,
-            }),
-            {
-                csrfTokenStore: mockStore.csrfTokenStore,
-                ...testCsrfOption,
-            },
-        );
+        const signUpHeaders = await generateSuccessfulLoginHeaders(mockUserId, cookieConfig);
+        simulateBrowserCookieStorage(assertWrap.isArray(signUpHeaders['set-cookie']));
 
         /** Step 2: Verify sign-up stored the CSRF token. */
-        assert.isDefined(
-            await getCurrentCsrfToken({
-                csrfTokenStore: mockStore.csrfTokenStore,
-                ...testCsrfOption,
-            }),
-            'CSRF token should exist after sign-up.',
-        );
+        assert.isDefined(getCurrentCsrfToken(), 'CSRF token should exist after sign-up.');
 
         /**
          * Step 3: "Logout" - the CSRF token is NOT wiped anymore (recent change). Cookie still
@@ -483,44 +368,19 @@ describe('sign-up then login flow', () => {
          */
 
         /** Step 4: Login (generates new login headers). */
-        const loginHeaders = await generateSuccessfulLoginHeaders(
-            mockUserId,
-            {
-                cookieDuration: {
-                    hours: 2,
-                },
-                hostOrigin: 'https://www.example.com',
-                jwtParams: {
-                    ...mockJwtParams,
-                    jwtKeys,
-                },
-            },
-            testCsrfOption,
-        );
-
-        await handleAuthResponse(
-            new Response(null, {
-                status: 200,
-                headers: loginHeaders,
-            }),
-            {
-                csrfTokenStore: mockStore.csrfTokenStore,
-                ...testCsrfOption,
-            },
-        );
+        const loginHeaders = await generateSuccessfulLoginHeaders(mockUserId, cookieConfig);
+        const loginSetCookies = assertWrap.isArray(loginHeaders['set-cookie']);
+        simulateBrowserCookieStorage(loginSetCookies);
 
         /** Step 5: Verify login stored the new CSRF token. */
         const loginCsrfToken = assertWrap.isDefined(
-            await getCurrentCsrfToken({
-                csrfTokenStore: mockStore.csrfTokenStore,
-                ...testCsrfOption,
-            }),
+            getCurrentCsrfToken(),
             'CSRF token should exist after login.',
         );
 
         /** Step 6: Verify the new CSRF token works for authentication. */
         const requestHeaders = {
-            cookie: assertWrap.isTruthy(loginHeaders['set-cookie']),
+            cookie: setCookiesToRequestCookie(loginSetCookies),
             [testCsrfHeaderName]: loginCsrfToken,
         };
 
@@ -531,6 +391,7 @@ describe('sign-up then login flow', () => {
                 jwtKeys,
             },
             testCsrfOption,
+            AuthCookie.Auth,
         );
         assert.strictEquals(userIdResult?.userId, mockUserId);
     });

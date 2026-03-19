@@ -1,70 +1,31 @@
 import {assert} from '@augment-vir/assert';
 import {describe, it} from '@augment-vir/test';
-import {
-    generateCsrfToken,
-    getCurrentCsrfToken,
-    storeCsrfToken,
-    wipeCurrentCsrfToken,
-} from './csrf-token.js';
-import {createMockCsrfTokenStore} from './mock-csrf-token-store.js';
-
-const testCsrfOption = {
-    csrfHeaderPrefix: 'test',
-};
+import {generateCsrfToken, getCurrentCsrfToken} from './csrf-token.js';
+import {clearCsrfCookieInBrowser, simulateCsrfCookie} from './csrf-token.mock.js';
 
 describe(getCurrentCsrfToken.name, () => {
-    it('can store and retrieve a CSRF token', async () => {
+    it('can store and retrieve a CSRF token', () => {
+        clearCsrfCookieInBrowser();
         const mockCsrfToken = generateCsrfToken();
 
-        const {csrfTokenStore} = createMockCsrfTokenStore();
-        await storeCsrfToken(mockCsrfToken, {
-            csrfTokenStore,
-            ...testCsrfOption,
-        });
+        simulateCsrfCookie(mockCsrfToken);
 
-        assert.strictEquals(
-            await getCurrentCsrfToken({
-                csrfTokenStore,
-                ...testCsrfOption,
-            }),
-            mockCsrfToken,
-        );
-        await wipeCurrentCsrfToken({
-            csrfTokenStore,
-            ...testCsrfOption,
-        });
-        assert.isUndefined(
-            await getCurrentCsrfToken({
-                csrfTokenStore,
-                ...testCsrfOption,
-            }),
-        );
+        assert.strictEquals(getCurrentCsrfToken(), mockCsrfToken);
+
+        clearCsrfCookieInBrowser();
+
+        assert.isUndefined(getCurrentCsrfToken());
     });
-    it('uses prefix to generate header name', async () => {
+    it('uses prefix to generate header name', () => {
+        clearCsrfCookieInBrowser();
         const mockCsrfToken = generateCsrfToken();
 
-        const {csrfTokenStore} = createMockCsrfTokenStore();
-        await storeCsrfToken(mockCsrfToken, {
-            csrfTokenStore,
-            ...testCsrfOption,
-        });
+        simulateCsrfCookie(mockCsrfToken);
 
-        assert.strictEquals(
-            await getCurrentCsrfToken({
-                csrfTokenStore,
-                ...testCsrfOption,
-            }),
-            mockCsrfToken,
-        );
-        await wipeCurrentCsrfToken({
-            csrfTokenStore,
-            ...testCsrfOption,
-        });
-        assert.isUndefined(
-            await getCurrentCsrfToken({
-                csrfTokenStore,
-                ...testCsrfOption,
-            }),
-        );
+        assert.strictEquals(getCurrentCsrfToken(), mockCsrfToken);
+
+        clearCsrfCookieInBrowser();
+
+        assert.isUndefined(getCurrentCsrfToken());
     });
 });

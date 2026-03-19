@@ -1,20 +1,15 @@
-import {type PartialWithUndefined} from '@augment-vir/common';
+import {type SelectFrom} from '@augment-vir/common';
 import {type FullDate, type UtcTimezone} from 'date-vir';
 import {
-    AuthCookieName,
+    AuthCookie,
     clearAuthCookie,
+    clearCsrfCookie,
     type CookieParams,
     extractCookieJwt,
     generateAuthCookie,
+    generateCsrfCookie,
 } from './cookie.js';
-import {type CsrfTokenStore} from './csrf-token-store.js';
-import {
-    type CsrfHeaderNameOption,
-    extractCsrfTokenHeader,
-    generateCsrfToken,
-    resolveCsrfHeaderName,
-    storeCsrfToken,
-} from './csrf-token.js';
+import {type CsrfHeaderNameOption, generateCsrfToken, resolveCsrfHeaderName} from './csrf-token.js';
 import {type ParseJwtParams} from './jwt/jwt.js';
 import {type JwtUserData} from './jwt/user-jwt.js';
 
@@ -51,7 +46,7 @@ export type UserIdResult<UserId extends string | number> = {
     jwtExpiration: FullDate<UtcTimezone>;
     /** When the JWT was issued (`iat` claim). */
     jwtIssuedAt: FullDate<UtcTimezone>;
-    cookieName: string;
+    cookieName: AuthCookie;
     /** The CSRF token embedded in the JWT. */
     csrfToken: string;
     /**
@@ -80,7 +75,7 @@ export async function extractUserIdFromRequestHeaders<UserId extends string | nu
     headers: HeaderContainer,
     jwtParams: Readonly<ParseJwtParams>,
     csrfHeaderNameOption: Readonly<CsrfHeaderNameOption>,
-    cookieName: string = AuthCookieName.Auth,
+    cookieName: AuthCookie = AuthCookie.Auth,
 ): Promise<Readonly<UserIdResult<UserId>> | undefined> {
     try {
         const csrfToken = readCsrfTokenHeader(headers, csrfHeaderNameOption);
@@ -120,7 +115,7 @@ export async function extractUserIdFromRequestHeaders<UserId extends string | nu
 export async function insecureExtractUserIdFromCookieAlone<UserId extends string | number>(
     headers: HeaderContainer,
     jwtParams: Readonly<ParseJwtParams>,
-    cookieName: string = AuthCookieName.Auth,
+    cookieName: AuthCookie,
 ): Promise<Readonly<UserIdResult<UserId>> | undefined> {
     try {
         const cookie = readHeader(headers, 'cookie');
@@ -149,7 +144,9 @@ export async function insecureExtractUserIdFromCookieAlone<UserId extends string
 }
 
 /**
- * Used by host (backend) code to set headers on a response object.
+ * Used by host (backend) code to set headers on a response object. Sets both the auth JWT cookie
+ * and the CSRF token cookie. The CSRF cookie is not `HttpOnly` so that frontend JavaScript can read
+ * it and inject the value as a request header.
  *
  * @category Auth : Host
  */
@@ -157,17 +154,15 @@ export async function generateSuccessfulLoginHeaders(
     /** The id from your database of the user you're authenticating. */
     userId: string | number,
     cookieConfig: Readonly<CookieParams>,
-    csrfHeaderNameOption: Readonly<CsrfHeaderNameOption>,
     /**
      * The timestamp (in seconds) when the session originally started. If not provided, the current
      * time will be used (for new sessions).
      */
     sessionStartedAt?: number | undefined,
-): Promise<Record<string, string>> {
+): Promise<Record<string, string[]>> {
     const csrfToken = generateCsrfToken();
-    const csrfHeaderName = resolveCsrfHeaderName(csrfHeaderNameOption);
 
-    const {cookie} = await generateAuthCookie(
+    const authCookie = await generateAuthCookie(
         {
             csrfToken,
             userId,
@@ -176,9 +171,13 @@ export async function generateSuccessfulLoginHeaders(
         cookieConfig,
     );
 
+    const csrfCookie = generateCsrfCookie(csrfToken, cookieConfig);
+
     return {
-        'set-cookie': cookie,
-        [csrfHeaderName]: csrfToken,
+        'set-cookie': [
+            authCookie,
+            csrfCookie,
+        ],
     };
 }
 
@@ -189,43 +188,12 @@ export async function generateSuccessfulLoginHeaders(
  * @category Auth : Host
  */
 export function generateLogoutHeaders(
-    cookieConfig: Readonly<Pick<CookieParams, 'cookieName' | 'hostOrigin' | 'isDev'>>,
-): Record<string, string> {
+    cookieConfig: Readonly<SelectFrom<CookieParams, {hostOrigin: true; isDev: true}>>,
+): Record<string, string[]> {
     return {
-        'set-cookie': clearAuthCookie(cookieConfig),
+        'set-cookie': [
+            clearAuthCookie(cookieConfig),
+            clearCsrfCookie(cookieConfig),
+        ],
     };
-}
-
-/**
- * Store auth data on a client (frontend) after receiving an auth response from the host (backend).
- * Specifically, this stores the CSRF token into IndexedDB (which doesn't need to be a secret).
- * Alternatively, if the given response failed, this will wipe the existing (if any) stored CSRF
- * token.
- *
- * @category Auth : Client
- * @throws Error if no CSRF token header is found.
- */
-export async function handleAuthResponse(
-    response: Readonly<Pick<Response, 'ok' | 'headers'>>,
-    options: Readonly<CsrfHeaderNameOption> &
-        PartialWithUndefined<{
-            /**
-             * Allows mocking or overriding the default CSRF token store.
-             *
-             * @default getDefaultCsrfTokenStore()
-             */
-            csrfTokenStore: CsrfTokenStore;
-        }>,
-): Promise<void> {
-    if (!response.ok) {
-        return;
-    }
-
-    const csrfToken = extractCsrfTokenHeader(response, options);
-
-    if (!csrfToken) {
-        throw new Error('Did not receive any CSRF token.');
-    }
-
-    await storeCsrfToken(csrfToken, options);
 }

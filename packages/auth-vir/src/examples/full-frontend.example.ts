@@ -1,11 +1,5 @@
 import {HttpStatus} from '@augment-vir/common';
-import {
-    type CsrfHeaderNameOption,
-    getCurrentCsrfToken,
-    handleAuthResponse,
-    resolveCsrfHeaderName,
-    wipeCurrentCsrfToken,
-} from '../index.js';
+import {type CsrfHeaderNameOption, getCurrentCsrfToken, resolveCsrfHeaderName} from '../index.js';
 
 /**
  * The CSRF header prefix for this app. Either `csrfHeaderPrefix` or `csrfHeaderName` must be
@@ -20,7 +14,7 @@ export async function sendLoginRequest(
     userLoginData: {username: string; password: string},
     loginUrl: string,
 ) {
-    if (await getCurrentCsrfToken(csrfOption)) {
+    if (getCurrentCsrfToken()) {
         throw new Error('Already logged in.');
     }
 
@@ -30,7 +24,7 @@ export async function sendLoginRequest(
         credentials: 'include',
     });
 
-    await handleAuthResponse(response, csrfOption);
+    /** The CSRF token cookie is automatically stored by the browser from the Set-Cookie header. */
 
     return response;
 }
@@ -41,7 +35,7 @@ export async function sendAuthenticatedRequest(
     requestInit: Omit<RequestInit, 'headers'> = {},
     headers: Record<string, string> = {},
 ) {
-    const csrfToken = await getCurrentCsrfToken(csrfOption);
+    const csrfToken = getCurrentCsrfToken();
 
     if (!csrfToken) {
         throw new Error('Not authenticated.');
@@ -56,20 +50,19 @@ export async function sendAuthenticatedRequest(
         },
     });
 
-    /**
-     * This indicates the user is no longer authorized and thus needs to login again. (This likely
-     * means that their session timed out or they clicked a "log out" button onr your website in
-     * another tab.)
-     */
     if (response.status === HttpStatus.Unauthorized) {
-        await wipeCurrentCsrfToken(csrfOption);
         throw new Error(`User no longer logged in.`);
     } else {
         return response;
     }
 }
 
-/** Call this when the user explicitly clicks a "log out" button. */
-export async function logout() {
-    await wipeCurrentCsrfToken(csrfOption);
+/**
+ * Call this when the user explicitly clicks a "log out" button. The backend clears the auth and
+ * CSRF cookies via Set-Cookie headers.
+ */
+export async function logout(logoutUrl: string) {
+    await sendAuthenticatedRequest(logoutUrl, {
+        method: 'post',
+    });
 }

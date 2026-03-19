@@ -1,13 +1,11 @@
 import {check} from '@augment-vir/assert';
-import {escapeStringForRegExp, safeMatch, type PartialWithUndefined} from '@augment-vir/common';
 import {
-    calculateRelativeDate,
-    convertDuration,
-    getNowInUtcTimezone,
-    type AnyDuration,
-    type FullDate,
-    type UtcTimezone,
-} from 'date-vir';
+    escapeStringForRegExp,
+    safeMatch,
+    type PartialWithUndefined,
+    type SelectFrom,
+} from '@augment-vir/common';
+import {convertDuration, type AnyDuration} from 'date-vir';
 import {type Primitive} from 'type-fest';
 import {parseUrl} from 'url-vir';
 import {type CreateJwtParams, type ParseJwtParams, type ParsedJwt} from './jwt/jwt.js';
@@ -18,11 +16,13 @@ import {createUserJwt, parseUserJwt, type JwtUserData} from './jwt/user-jwt.js';
  *
  * @category Internal
  */
-export enum AuthCookieName {
+export enum AuthCookie {
     /** Used for a full user login auth. */
     Auth = 'auth',
     /** Use for a temporary "just signed up" auth. */
     SignUp = 'sign-up',
+    /** Used for storing the CSRF token. Not `HttpOnly` so that frontend JS can read it. */
+    Csrf = 'auth-vir-csrf',
 }
 
 /**
@@ -49,8 +49,13 @@ export type CookieParams = {
      * client, etc.
      */
     jwtParams: Readonly<CreateJwtParams>;
-    cookieName?: string;
 } & PartialWithUndefined<{
+    /**
+     * Which auth cookie name to use.
+     *
+     * @default AuthCookie.Auth
+     */
+    authCookie: AuthCookie;
     /**
      * Is set to `true` (which should only be done in development environments), the cookie will be
      * allowed in insecure requests (non HTTPS requests).
@@ -60,15 +65,32 @@ export type CookieParams = {
     isDev: boolean;
 }>;
 
-/**
- * Output from {@link generateAuthCookie}.
- *
- * @category Internal
- */
-export type GenerateAuthCookieResult = {
-    cookie: string;
-    expiration: FullDate<UtcTimezone>;
-};
+function generateSetCookie({
+    name,
+    value,
+    httpOnly,
+    cookieConfig,
+}: {
+    name: string;
+    value: string;
+    httpOnly: boolean;
+    cookieConfig: Readonly<SelectFrom<CookieParams, {hostOrigin: true; isDev: true}>> &
+        PartialWithUndefined<SelectFrom<CookieParams, {cookieDuration: true}>>;
+}): string {
+    return generateCookie({
+        [name]: value,
+        Domain: parseUrl(cookieConfig.hostOrigin).hostname,
+        HttpOnly: httpOnly,
+        Path: '/',
+        SameSite: 'Strict',
+        'MAX-AGE': cookieConfig.cookieDuration
+            ? convertDuration(cookieConfig.cookieDuration, {
+                  seconds: true,
+              }).seconds
+            : 0,
+        Secure: !cookieConfig.isDev,
+    });
+}
 
 /**
  * Generate a secure cookie that stores the user JWT data. Used in host (backend) code.
@@ -78,26 +100,41 @@ export type GenerateAuthCookieResult = {
 export async function generateAuthCookie(
     userJwtData: Readonly<JwtUserData>,
     cookieConfig: Readonly<CookieParams>,
-): Promise<GenerateAuthCookieResult> {
-    const expiration = calculateRelativeDate(getNowInUtcTimezone(), cookieConfig.cookieDuration);
+): Promise<string> {
+    return generateSetCookie({
+        name: cookieConfig.authCookie || AuthCookie.Auth,
+        value: await createUserJwt(userJwtData, cookieConfig.jwtParams),
+        httpOnly: true,
+        cookieConfig,
+    });
+}
 
-    return {
-        cookie: generateCookie({
-            [cookieConfig.cookieName || 'auth']: await createUserJwt(
-                userJwtData,
-                cookieConfig.jwtParams,
-            ),
-            Domain: parseUrl(cookieConfig.hostOrigin).hostname,
-            HttpOnly: true,
-            Path: '/',
-            SameSite: 'Strict',
-            'MAX-AGE': convertDuration(cookieConfig.cookieDuration, {
-                seconds: true,
-            }).seconds,
-            Secure: !cookieConfig.isDev,
-        }),
-        expiration,
-    };
+/**
+ * Generate a CSRF token cookie. This cookie is intentionally not `HttpOnly` so that frontend
+ * JavaScript can read it and inject the value as a request header for double-submit verification.
+ *
+ * The CSRF cookie uses a fixed 400-day MAX-AGE rather than matching the auth cookie duration. 400
+ * days is the cross-browser safe maximum (Chrome caps cookie lifetimes at 400 days; other browsers
+ * accept it as-is). The CSRF token is only meaningful when paired with a valid JWT, so it doesn't
+ * need its own expiration management. It gets regenerated on every fresh login.
+ *
+ * @category Internal
+ */
+export function generateCsrfCookie(
+    csrfToken: string,
+    cookieConfig: Readonly<SelectFrom<CookieParams, {hostOrigin: true; isDev: true}>>,
+): string {
+    return generateSetCookie({
+        name: AuthCookie.Csrf,
+        value: csrfToken,
+        httpOnly: false,
+        cookieConfig: {
+            ...cookieConfig,
+            cookieDuration: {
+                days: 400,
+            },
+        },
+    });
 }
 
 /**
@@ -106,16 +143,30 @@ export async function generateAuthCookie(
  * @category Internal
  */
 export function clearAuthCookie(
-    cookieConfig: Readonly<Pick<CookieParams, 'cookieName' | 'hostOrigin' | 'isDev'>>,
+    cookieConfig: Readonly<SelectFrom<CookieParams, {hostOrigin: true; isDev: true}>> &
+        PartialWithUndefined<{authCookie: AuthCookie}>,
 ) {
-    return generateCookie({
-        [cookieConfig.cookieName || 'auth']: 'redacted',
-        Domain: parseUrl(cookieConfig.hostOrigin).hostname,
-        HttpOnly: true,
-        Path: '/',
-        SameSite: 'Strict',
-        'MAX-AGE': 0,
-        Secure: !cookieConfig.isDev,
+    return generateSetCookie({
+        name: cookieConfig.authCookie || AuthCookie.Auth,
+        value: 'redacted',
+        httpOnly: true,
+        cookieConfig,
+    });
+}
+
+/**
+ * Generate a cookie value that will clear the CSRF token cookie. Use this when signing out.
+ *
+ * @category Internal
+ */
+export function clearCsrfCookie(
+    cookieConfig: Readonly<SelectFrom<CookieParams, {hostOrigin: true; isDev: true}>>,
+) {
+    return generateSetCookie({
+        name: AuthCookie.Csrf,
+        value: 'redacted',
+        httpOnly: false,
+        cookieConfig,
     });
 }
 
@@ -158,7 +209,7 @@ export function generateCookie(
 export async function extractCookieJwt(
     rawCookie: string,
     jwtParams: Readonly<ParseJwtParams>,
-    cookieName: string = AuthCookieName.Auth,
+    cookieName: AuthCookie,
 ): Promise<undefined | ParsedJwt<JwtUserData>> {
     const cookieRegExp = new RegExp(`${escapeStringForRegExp(cookieName)}=[^;]+(?:;|$)`);
 

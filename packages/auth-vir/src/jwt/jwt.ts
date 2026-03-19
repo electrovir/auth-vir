@@ -1,5 +1,5 @@
 import {assertWrap, check} from '@augment-vir/assert';
-import {type AnyObject, type PartialWithUndefined} from '@augment-vir/common';
+import {type AnyObject, type PartialWithUndefined, type SelectFrom} from '@augment-vir/common';
 import {
     type AnyDuration,
     calculateRelativeDate,
@@ -13,7 +13,6 @@ import {
     type UtcTimezone,
 } from 'date-vir';
 import {EncryptJWT, jwtDecrypt, jwtVerify, SignJWT} from 'jose';
-import {defaultAllowedClockSkew} from '../csrf-token.js';
 import {type JwtKeys} from './jwt-keys.js';
 
 const encryptionProtectedHeader = {
@@ -22,6 +21,17 @@ const encryptionProtectedHeader = {
 };
 const signingProtectedHeader = {
     alg: 'HS512',
+};
+
+/**
+ * Default allowed clock skew for JWT expiration checks. Accounts for differences between server and
+ * client clocks.
+ *
+ * @category Internal
+ * @default {minutes: 5}
+ */
+export const defaultAllowedClockSkew: Readonly<AnyDuration> = {
+    minutes: 5,
 };
 
 /**
@@ -148,7 +158,9 @@ export async function createJwt<JwtData extends AnyObject = AnyObject>(
  *
  * @category Internal
  */
-export type ParseJwtParams = Readonly<Pick<CreateJwtParams, 'issuer' | 'audience' | 'jwtKeys'>> &
+export type ParseJwtParams = Readonly<
+    SelectFrom<CreateJwtParams, {issuer: true; audience: true; jwtKeys: true}>
+> &
     PartialWithUndefined<{
         /**
          * Allowed clock skew tolerance for JWT expiration and timestamp checks. Accounts for

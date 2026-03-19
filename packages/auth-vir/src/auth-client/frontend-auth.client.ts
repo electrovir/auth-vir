@@ -9,13 +9,10 @@ import {
 import {type AnyDuration} from 'date-vir';
 import {listenToActivity} from 'detect-activity';
 import {type EmptyObject} from 'type-fest';
-import {type CsrfTokenStore} from '../csrf-token-store.js';
 import {
     type CsrfHeaderNameOption,
-    extractCsrfTokenHeader,
     getCurrentCsrfToken,
     resolveCsrfHeaderName,
-    storeCsrfToken,
 } from '../csrf-token.js';
 import {AuthHeaderName} from '../headers.js';
 
@@ -75,8 +72,7 @@ export type FrontendAuthClientConfig = Readonly<{
         assumedUserHeaderName: string;
 
         overrides: PartialWithUndefined<{
-            localStorage: Pick<Storage, 'setItem' | 'removeItem' | 'getItem'>;
-            csrfTokenStore: CsrfTokenStore;
+            localStorage: SelectFrom<Storage, {setItem: true; removeItem: true; getItem: true}>;
         }>;
     }>;
 
@@ -119,14 +115,6 @@ export class FrontendAuthClient<AssumedUserParams extends JsonCompatibleObject =
     public destroy() {
         this.userCheckInterval?.clearInterval();
         this.removeActivityListener?.();
-    }
-
-    /** Wraps {@link getCurrentCsrfToken} to retrieve the stored CSRF token string. */
-    public async getCurrentCsrfToken(): Promise<string | undefined> {
-        return await getCurrentCsrfToken({
-            ...this.config.csrf,
-            csrfTokenStore: this.config.overrides?.csrfTokenStore,
-        });
     }
 
     /**
@@ -174,8 +162,8 @@ export class FrontendAuthClient<AssumedUserParams extends JsonCompatibleObject =
      * `@augment-vir/common`](https://electrovir.github.io/augment-vir/functions/mergeDeep.html) to
      * combine them with these.
      */
-    public async createAuthenticatedRequestInit(): Promise<RequestInit> {
-        const csrfToken = await this.getCurrentCsrfToken();
+    public createAuthenticatedRequestInit(): RequestInit {
+        const csrfToken = getCurrentCsrfToken();
 
         const assumedUser = this.getAssumedUser();
         const headers: HeadersInit = {
@@ -204,38 +192,18 @@ export class FrontendAuthClient<AssumedUserParams extends JsonCompatibleObject =
     }
 
     /**
-     * Use to handle a login response. Automatically stores the CSRF token.
+     * Use to handle a login response. The CSRF token cookie is automatically stored by the browser
+     * from the `Set-Cookie` response header.
      *
      * @throws Error if the login response failed.
-     * @throws Error if the login response has an invalid CSRF token.
      */
     public async handleLoginResponse(
-        response: Readonly<
-            SelectFrom<
-                Response,
-                {
-                    headers: true;
-                    ok: true;
-                }
-            >
-        >,
+        response: Readonly<SelectFrom<Response, {ok: true}>>,
     ): Promise<void> {
         if (!response.ok) {
             await this.logout();
             throw new Error('Login response failed.');
         }
-
-        const csrfToken = extractCsrfTokenHeader(response, this.config.csrf);
-
-        if (!csrfToken) {
-            await this.logout();
-            throw new Error('Did not receive any CSRF token.');
-        }
-
-        await storeCsrfToken(csrfToken, {
-            ...this.config.csrf,
-            csrfTokenStore: this.config.overrides?.csrfTokenStore,
-        });
     }
 
     /**

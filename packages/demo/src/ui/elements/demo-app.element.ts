@@ -8,13 +8,7 @@ import {
     stringify,
 } from '@augment-vir/common';
 import {generateApi, mapServiceDevPort} from '@rest-vir/define-service';
-import {
-    getCurrentCsrfToken,
-    handleAuthResponse,
-    resolveCsrfHeaderName,
-    wipeCurrentCsrfToken,
-    type CsrfHeaderNameOption,
-} from 'auth-vir';
+import {getCurrentCsrfToken, resolveCsrfHeaderName, type CsrfHeaderNameOption} from 'auth-vir';
 import {asyncProp, css, defineElement, html, listen, nothing, type AsyncProp} from 'element-vir';
 import {LoaderAnimated24Icon, ViraButton, ViraIcon, ViraInput, ViraInputType} from 'vira';
 import {demoService, type DemoService} from '../../demo-service-definition.js';
@@ -52,7 +46,7 @@ async function loadUser(
     apiPromise: Promise<DemoApi>,
 ): Promise<DemoService['endpoints']['/user']['ResponseType'] | undefined> {
     console.info('[loadUser] Checking for existing CSRF token...');
-    const csrfToken = await getCurrentCsrfToken(demoCsrfOption);
+    const csrfToken = getCurrentCsrfToken();
 
     console.info(
         '[loadUser] CSRF token result:',
@@ -94,7 +88,7 @@ export async function connectToDemoApi(
                 console.info('[fetch-wrapper] Fetching:', url);
                 console.info('[fetch-wrapper] Init method:', init.method);
 
-                const csrfToken = await getCurrentCsrfToken(demoCsrfOption);
+                const csrfToken = getCurrentCsrfToken();
                 console.info(
                     '[fetch-wrapper] CSRF token for request:',
                     csrfToken ? `present (${csrfToken.slice(0, 20)}...)` : 'MISSING',
@@ -247,14 +241,10 @@ export const DemoApp = defineElement()({
                     );
                 });
 
-                console.info('[login] Calling handleAuthResponse...');
-                await handleAuthResponse(response.response, demoCsrfOption);
-                console.info('[login] handleAuthResponse completed');
-
-                /** Verify CSRF was stored by reading it back. */
-                const storedCsrf = await getCurrentCsrfToken(demoCsrfOption);
+                /** Verify CSRF cookie was stored by the browser from Set-Cookie. */
+                const storedCsrf = getCurrentCsrfToken();
                 console.info(
-                    '[login] CSRF token stored after handleAuthResponse:',
+                    '[login] CSRF token stored from Set-Cookie:',
                     storedCsrf ? `yes (${storedCsrf.slice(0, 20)}...)` : 'NO - MISSING',
                 );
 
@@ -372,9 +362,16 @@ export const DemoApp = defineElement()({
                         text: 'Logout',
                     })}
                         ${listen('click', async () => {
-                            console.info('[logout] Wiping CSRF token...');
-                            await wipeCurrentCsrfToken(demoCsrfOption);
-                            console.info('[logout] CSRF token wiped, clearing user state');
+                            console.info('[logout] Calling /logout endpoint...');
+                            const api: DemoApi | undefined = state.api.isNotError()
+                                ? await state.api.value
+                                : undefined;
+
+                            if (api) {
+                                await api.endpoints['/logout'].fetch({});
+                            }
+
+                            console.info('[logout] Cookies cleared by server, clearing user state');
                             state.authenticatedUser.setValue(undefined);
                         })}
                     ></${ViraButton}>
