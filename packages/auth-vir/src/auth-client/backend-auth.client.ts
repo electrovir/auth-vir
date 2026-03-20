@@ -664,6 +664,9 @@ export class BackendAuthClient<
                       isSignUpCookie: !isSignUpCookie,
                       requestHeaders,
                   }),
+                  {
+                      preserveCsrf: true,
+                  },
               )
             : undefined;
 
