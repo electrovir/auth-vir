@@ -189,11 +189,23 @@ export async function generateSuccessfulLoginHeaders(
  */
 export function generateLogoutHeaders(
     cookieConfig: Readonly<SelectFrom<CookieParams, {hostOrigin: true; isDev: true}>>,
+    options?: Readonly<{
+        /**
+         * When `true`, the CSRF cookie is preserved (not cleared). Use this when clearing only one
+         * cookie type (e.g., the auth cookie) while keeping the other active session (e.g.,
+         * sign-up) that still needs its CSRF token.
+         */
+        preserveCsrf?: boolean | undefined;
+    }>,
 ): Record<string, string[]> {
     return {
         'set-cookie': [
             clearAuthCookie(cookieConfig),
-            clearCsrfCookie(cookieConfig),
+            ...(options?.preserveCsrf
+                ? []
+                : [
+                      clearCsrfCookie(cookieConfig),
+                  ]),
         ],
     };
 }

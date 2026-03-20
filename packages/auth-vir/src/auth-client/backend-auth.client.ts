@@ -578,6 +578,8 @@ export class BackendAuthClient<
             'set-cookie': string[];
         }
     > {
+        const clearingAllCookies = !!params.allCookies;
+
         const signUpCookieHeaders =
             params.allCookies || params.isSignUpCookie
                 ? generateLogoutHeaders(
@@ -585,6 +587,9 @@ export class BackendAuthClient<
                           isSignUpCookie: true,
                           requestHeaders: undefined,
                       }),
+                      {
+                          preserveCsrf: !clearingAllCookies,
+                      },
                   )
                 : undefined;
         const authCookieHeaders =
@@ -594,6 +599,9 @@ export class BackendAuthClient<
                           isSignUpCookie: false,
                           requestHeaders: undefined,
                       }),
+                      {
+                          preserveCsrf: !clearingAllCookies,
+                      },
                   )
                 : undefined;
 

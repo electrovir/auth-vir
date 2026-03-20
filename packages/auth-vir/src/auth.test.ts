@@ -297,6 +297,25 @@ describe(generateLogoutHeaders.name, () => {
             },
         );
     });
+
+    it('preserves CSRF cookie when preserveCsrf is true', () => {
+        assert.deepEquals(
+            generateLogoutHeaders(
+                {
+                    hostOrigin: 'my-origin',
+                    isDev: true,
+                },
+                {
+                    preserveCsrf: true,
+                },
+            ),
+            {
+                'set-cookie': [
+                    'auth=redacted; Domain=my-origin; HttpOnly; Path=/; SameSite=Strict; MAX-AGE=0',
+                ],
+            },
+        );
+    });
 });
 
 describe('sign-up then login flow', () => {
