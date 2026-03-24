@@ -17,12 +17,17 @@ import {type EmptyObject, type RequireExactlyOne, type RequireOneOrNone} from 't
 import {
     extractUserIdFromRequestHeaders,
     generateLogoutHeaders,
-    generateSuccessfulLoginHeaders,
     insecureExtractUserIdFromCookieAlone,
     type UserIdResult,
 } from '../auth.js';
-import {AuthCookie, generateAuthCookie, generateCsrfCookie, type CookieParams} from '../cookie.js';
-import {type CsrfHeaderNameOption} from '../csrf-token.js';
+import {
+    AuthCookie,
+    clearCsrfCookie,
+    generateAuthCookie,
+    generateCsrfCookie,
+    type CookieParams,
+} from '../cookie.js';
+import {generateCsrfToken, type CsrfHeaderNameOption} from '../csrf-token.js';
 import {AuthHeaderName, mergeHeaderValues} from '../headers.js';
 import {generateNewJwtKeys, parseJwtKeys, type JwtKeys, type RawJwtKeys} from '../jwt/jwt-keys.js';
 import {defaultAllowedClockSkew, type CreateJwtParams, type ParseJwtParams} from '../jwt/jwt.js';
@@ -168,6 +173,19 @@ export type BackendAuthClientConfig<
          * @default {minutes: 5}
          */
         allowedClockSkew: Readonly<AnyDuration>;
+        /**
+         * Optional separate origin for the CSRF cookie's `Domain` attribute. When set, the
+         * non-`HttpOnly` CSRF cookie will use this origin's hostname instead of `serviceOrigin`.
+         *
+         * This is useful when the backend and frontend live on different subdomains that don't
+         * share a common parent narrower than the top-level domain. The `HttpOnly` auth cookie
+         * stays scoped to `serviceOrigin` (protecting it from unrelated subdomains), while the CSRF
+         * cookie uses the broader domain so frontend JavaScript can read it via `document.cookie`.
+         *
+         * The CSRF token alone is not a security risk — it is only meaningful when paired with the
+         * JWT embedded in the `HttpOnly` auth cookie.
+         */
+        csrfCookieOrigin: string;
     }>
 >;
 
@@ -200,6 +218,14 @@ export class BackendAuthClient<
     constructor(
         protected readonly config: BackendAuthClientConfig<DatabaseUser, UserId, AssumedUserParams>,
     ) {}
+
+    /**
+     * Resolves the origin to use for CSRF cookie generation. Returns `csrfCookieOrigin` if
+     * configured, otherwise falls back to the auth cookie origin.
+     */
+    protected resolveCsrfCookieOrigin(authCookieOrigin: string): string {
+        return this.config.csrfCookieOrigin || authCookieOrigin;
+    }
 
     /** Conditionally logs a message if logging is enabled for the given user context. */
     protected logForUser(
@@ -383,7 +409,10 @@ export class BackendAuthClient<
                 },
                 cookieParams,
             );
-            const csrfCookie = generateCsrfCookie(userIdResult.csrfToken, cookieParams);
+            const csrfCookie = generateCsrfCookie(userIdResult.csrfToken, {
+                ...cookieParams,
+                hostOrigin: this.resolveCsrfCookieOrigin(cookieParams.hostOrigin),
+            });
 
             return {
                 'set-cookie': [
@@ -519,11 +548,13 @@ export class BackendAuthClient<
          * Always include the CSRF cookie so it gets re-established if the browser clears it. When
          * session refresh fires, its headers already include a CSRF cookie.
          */
+        const authCookieOrigin =
+            (await this.config.generateServiceOrigin?.({
+                requestHeaders,
+            })) || this.config.serviceOrigin;
+
         const csrfCookie = generateCsrfCookie(userIdResult.csrfToken, {
-            hostOrigin:
-                (await this.config.generateServiceOrigin?.({
-                    requestHeaders,
-                })) || this.config.serviceOrigin,
+            hostOrigin: this.resolveCsrfCookieOrigin(authCookieOrigin),
             isDev: this.config.isDev,
         });
 
@@ -605,10 +636,23 @@ export class BackendAuthClient<
                   )
                 : undefined;
 
+        /**
+         * When `csrfCookieOrigin` is configured, the CSRF cookie lives on a broader domain than the
+         * auth cookie. Clear it on that broader domain too so stale tokens don't linger.
+         */
+        const broadCsrfClearCookie =
+            clearingAllCookies && this.config.csrfCookieOrigin
+                ? clearCsrfCookie({
+                      hostOrigin: this.config.csrfCookieOrigin,
+                      isDev: this.config.isDev,
+                  })
+                : undefined;
+
         return {
             'set-cookie': mergeHeaderValues(
                 signUpCookieHeaders?.['set-cookie'],
                 authCookieHeaders?.['set-cookie'],
+                broadCsrfClearCookie,
             ),
         };
     }
@@ -635,7 +679,39 @@ export class BackendAuthClient<
             cookieParams,
         );
 
-        const csrfCookie = generateCsrfCookie(existingUserIdResult.csrfToken, cookieParams);
+        const csrfCookie = generateCsrfCookie(existingUserIdResult.csrfToken, {
+            ...cookieParams,
+            hostOrigin: this.resolveCsrfCookieOrigin(cookieParams.hostOrigin),
+        });
+
+        return {
+            'set-cookie': [
+                authCookie,
+                csrfCookie,
+            ],
+        };
+    }
+
+    /** Generates login headers for a brand-new session (no existing JWT to reuse). */
+    protected async generateFreshLoginHeaders(
+        userId: UserId,
+        cookieParams: Readonly<CookieParams>,
+    ): Promise<Record<string, string[]>> {
+        const csrfToken = generateCsrfToken();
+
+        const authCookie = await generateAuthCookie(
+            {
+                csrfToken,
+                userId,
+                sessionStartedAt: Date.now(),
+            },
+            cookieParams,
+        );
+
+        const csrfCookie = generateCsrfCookie(csrfToken, {
+            ...cookieParams,
+            hostOrigin: this.resolveCsrfCookieOrigin(cookieParams.hostOrigin),
+        });
 
         return {
             'set-cookie': [
@@ -688,7 +764,7 @@ export class BackendAuthClient<
                   cookieParams,
                   existingUserIdResult,
               })
-            : await generateSuccessfulLoginHeaders(userId, cookieParams);
+            : await this.generateFreshLoginHeaders(userId, cookieParams);
 
         return {
             ...newCookieHeaders,
