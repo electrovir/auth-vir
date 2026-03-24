@@ -325,4 +325,21 @@ describe(FrontendAuthClient.name, () => {
         assert.strictEquals(getCurrentCsrfToken(), 'any-raw-token-string');
         assert.strictEquals(callCounts.authCleared, 0);
     });
+
+    it('reads from suffixed CSRF cookie when cookieNameSuffix is configured', () => {
+        const testSuffix = 'staging';
+        const {frontendAuthClient} = createMockFrontendAuthClient(undefined, testCsrfOption, {
+            cookieNameSuffix: testSuffix,
+        });
+
+        const csrfToken = generateCsrfToken();
+        simulateCsrfCookie(csrfToken, testSuffix);
+
+        assert.deepEquals(frontendAuthClient.createAuthenticatedRequestInit(), {
+            headers: {
+                [testCsrfHeaderName]: csrfToken,
+            },
+            credentials: 'include',
+        });
+    });
 });

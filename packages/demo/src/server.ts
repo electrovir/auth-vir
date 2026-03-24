@@ -4,6 +4,7 @@ import {log, randomString} from '@augment-vir/common';
 import {HttpStatus, implementService} from '@rest-vir/implement-service';
 import {startService} from '@rest-vir/run-service';
 import {
+    AuthCookie,
     doesPasswordMatchHash,
     extractUserIdFromRequestHeaders,
     generateLogoutHeaders,
@@ -80,14 +81,15 @@ const implementedService = implementService({
          *
          * @deprecated Unsafe
          */
-        const _unsafe_authenticatedUserResult = await extractUserIdFromRequestHeaders(
-            requestHeaders,
-            {
+        const _unsafe_authenticatedUserResult = await extractUserIdFromRequestHeaders({
+            headers: requestHeaders,
+            jwtParams: {
                 ...jwtParams,
                 jwtKeys,
             },
-            demoCsrfOption,
-        );
+            csrfHeaderNameOption: demoCsrfOption,
+            cookieName: AuthCookie.Auth,
+        });
 
         log.faint(
             'extractUserIdFromRequestHeaders result:',

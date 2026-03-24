@@ -26,6 +26,24 @@ export enum AuthCookie {
 }
 
 /**
+ * Resolves a cookie name by appending a suffix when provided. When `cookieNameSuffix` is
+ * `undefined`, the base name is returned unchanged.
+ *
+ * @category Internal
+ */
+export function resolveCookieName(
+    baseCookieName: AuthCookie,
+    cookieNameSuffix?: string | undefined,
+): string {
+    return [
+        baseCookieName,
+        cookieNameSuffix,
+    ]
+        .filter(check.isTruthy)
+        .join('-');
+}
+
+/**
  * Parameters for {@link generateAuthCookie}.
  *
  * @category Internal
@@ -63,6 +81,12 @@ export type CookieParams = {
      * @default false
      */
     isDev: boolean;
+    /**
+     * Optional suffix appended to cookie names (e.g., `'staging'` produces `auth-staging`). When
+     * `undefined`, cookie names are unchanged. Useful for running multiple environments on the same
+     * domain without cookie collisions.
+     */
+    cookieNameSuffix: string;
 }>;
 
 function generateSetCookie({
@@ -102,7 +126,10 @@ export async function generateAuthCookie(
     cookieConfig: Readonly<CookieParams>,
 ): Promise<string> {
     return generateSetCookie({
-        name: cookieConfig.authCookie || AuthCookie.Auth,
+        name: resolveCookieName(
+            cookieConfig.authCookie || AuthCookie.Auth,
+            cookieConfig.cookieNameSuffix,
+        ),
         value: await createUserJwt(userJwtData, cookieConfig.jwtParams),
         httpOnly: true,
         cookieConfig,
@@ -122,10 +149,11 @@ export async function generateAuthCookie(
  */
 export function generateCsrfCookie(
     csrfToken: string,
-    cookieConfig: Readonly<SelectFrom<CookieParams, {hostOrigin: true; isDev: true}>>,
+    cookieConfig: Readonly<SelectFrom<CookieParams, {hostOrigin: true; isDev: true}>> &
+        PartialWithUndefined<{cookieNameSuffix: string}>,
 ): string {
     return generateSetCookie({
-        name: AuthCookie.Csrf,
+        name: resolveCookieName(AuthCookie.Csrf, cookieConfig.cookieNameSuffix),
         value: csrfToken,
         httpOnly: false,
         cookieConfig: {
@@ -144,10 +172,13 @@ export function generateCsrfCookie(
  */
 export function clearAuthCookie(
     cookieConfig: Readonly<SelectFrom<CookieParams, {hostOrigin: true; isDev: true}>> &
-        PartialWithUndefined<{authCookie: AuthCookie}>,
+        PartialWithUndefined<{authCookie: AuthCookie; cookieNameSuffix: string}>,
 ) {
     return generateSetCookie({
-        name: cookieConfig.authCookie || AuthCookie.Auth,
+        name: resolveCookieName(
+            cookieConfig.authCookie || AuthCookie.Auth,
+            cookieConfig.cookieNameSuffix,
+        ),
         value: 'redacted',
         httpOnly: true,
         cookieConfig,
@@ -160,10 +191,11 @@ export function clearAuthCookie(
  * @category Internal
  */
 export function clearCsrfCookie(
-    cookieConfig: Readonly<SelectFrom<CookieParams, {hostOrigin: true; isDev: true}>>,
+    cookieConfig: Readonly<SelectFrom<CookieParams, {hostOrigin: true; isDev: true}>> &
+        PartialWithUndefined<{cookieNameSuffix: string}>,
 ) {
     return generateSetCookie({
-        name: AuthCookie.Csrf,
+        name: resolveCookieName(AuthCookie.Csrf, cookieConfig.cookieNameSuffix),
         value: 'redacted',
         httpOnly: false,
         cookieConfig,
@@ -206,12 +238,20 @@ export function generateCookie(
  * @category Internal
  * @returns The extracted auth Cookie JWT data or `undefined` if no valid auth JWT data was found.
  */
-export async function extractCookieJwt(
-    rawCookie: string,
-    jwtParams: Readonly<ParseJwtParams>,
-    cookieName: AuthCookie,
-): Promise<undefined | ParsedJwt<JwtUserData>> {
-    const cookieRegExp = new RegExp(`${escapeStringForRegExp(cookieName)}=[^;]+(?:;|$)`);
+export async function extractCookieJwt({
+    rawCookie,
+    jwtParams,
+    cookieName,
+    cookieNameSuffix,
+}: {
+    rawCookie: string;
+    jwtParams: Readonly<ParseJwtParams>;
+    cookieName: AuthCookie;
+} & PartialWithUndefined<{
+    cookieNameSuffix: string;
+}>): Promise<undefined | ParsedJwt<JwtUserData>> {
+    const resolvedName = resolveCookieName(cookieName, cookieNameSuffix);
+    const cookieRegExp = new RegExp(`${escapeStringForRegExp(resolvedName)}=[^;]+(?:;|$)`);
 
     const [cookieValue] = safeMatch(rawCookie, cookieRegExp);
 
@@ -219,7 +259,7 @@ export async function extractCookieJwt(
         return undefined;
     }
 
-    const rawJwt = cookieValue.replace(`${cookieName}=`, '').replace(';', '');
+    const rawJwt = cookieValue.replace(`${resolvedName}=`, '').replace(';', '');
 
     const jwt = await parseUserJwt(rawJwt, jwtParams);
 

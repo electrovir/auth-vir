@@ -1,6 +1,12 @@
 import {assert} from '@augment-vir/assert';
 import {describe, it} from '@augment-vir/test';
-import {AuthCookie, clearAuthCookie, extractCookieJwt, generateAuthCookie} from './cookie.js';
+import {
+    AuthCookie,
+    clearAuthCookie,
+    extractCookieJwt,
+    generateAuthCookie,
+    resolveCookieName,
+} from './cookie.js';
 import {generateNewJwtKeys, parseJwtKeys} from './jwt/jwt-keys.js';
 import {mockJwtParams} from './jwt/jwt.mock.js';
 import {type JwtUserData} from './jwt/user-jwt.js';
@@ -57,14 +63,14 @@ describe('cookie', () => {
 
         assert.deepEquals(
             (
-                await extractCookieJwt(
-                    await generateAuthCookie(mockJwt, cookieParams),
-                    {
+                await extractCookieJwt({
+                    rawCookie: await generateAuthCookie(mockJwt, cookieParams),
+                    jwtParams: {
                         ...mockJwtParams,
                         jwtKeys,
                     },
-                    AuthCookie.Auth,
-                )
+                    cookieName: AuthCookie.Auth,
+                })
             )?.data,
             mockJwt,
         );
@@ -96,5 +102,63 @@ describe(generateAuthCookie.name, () => {
         });
         assert.lacksValue(cookie, 'auth=');
         assert.hasValue(cookie, `${AuthCookie.SignUp}=`);
+    });
+});
+
+describe(resolveCookieName.name, () => {
+    it('returns the base name unchanged without a suffix', () => {
+        assert.strictEquals(resolveCookieName(AuthCookie.Auth), AuthCookie.Auth);
+    });
+
+    it('appends the suffix with a hyphen', () => {
+        assert.strictEquals(resolveCookieName(AuthCookie.Auth, 'staging'), 'auth-staging');
+    });
+
+    it('works with the CSRF cookie name', () => {
+        assert.strictEquals(resolveCookieName(AuthCookie.Csrf, 'staging'), 'auth-vir-csrf-staging');
+    });
+});
+
+describe('extractCookieJwt with cookieNameSuffix', () => {
+    it('can extract from a suffixed cookie', async () => {
+        const {jwtKeys, mockJwt, cookieParams} = await getCookieParams();
+
+        const suffixedCookie = await generateAuthCookie(mockJwt, {
+            ...cookieParams,
+            cookieNameSuffix: 'staging',
+        });
+
+        assert.deepEquals(
+            (
+                await extractCookieJwt({
+                    rawCookie: suffixedCookie,
+                    jwtParams: {
+                        ...mockJwtParams,
+                        jwtKeys,
+                    },
+                    cookieName: AuthCookie.Auth,
+                    cookieNameSuffix: 'staging',
+                })
+            )?.data,
+            mockJwt,
+        );
+    });
+
+    it('returns undefined when suffix does not match', async () => {
+        const {jwtKeys, mockJwt, cookieParams} = await getCookieParams();
+
+        const cookieWithoutSuffix = await generateAuthCookie(mockJwt, cookieParams);
+
+        assert.isUndefined(
+            await extractCookieJwt({
+                rawCookie: cookieWithoutSuffix,
+                jwtParams: {
+                    ...mockJwtParams,
+                    jwtKeys,
+                },
+                cookieName: AuthCookie.Auth,
+                cookieNameSuffix: 'staging',
+            }),
+        );
     });
 });

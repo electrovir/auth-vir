@@ -1,7 +1,7 @@
-import {type SelectFrom} from '@augment-vir/common';
+import {type PartialWithUndefined, type SelectFrom} from '@augment-vir/common';
 import {type FullDate, type UtcTimezone} from 'date-vir';
 import {
-    AuthCookie,
+    type AuthCookie,
     clearAuthCookie,
     clearCsrfCookie,
     type CookieParams,
@@ -71,12 +71,19 @@ function readCsrfTokenHeader(
  * @category Auth : Host
  * @returns The extracted user id or `undefined` if no valid auth headers exist.
  */
-export async function extractUserIdFromRequestHeaders<UserId extends string | number>(
-    headers: HeaderContainer,
-    jwtParams: Readonly<ParseJwtParams>,
-    csrfHeaderNameOption: Readonly<CsrfHeaderNameOption>,
-    cookieName: AuthCookie = AuthCookie.Auth,
-): Promise<Readonly<UserIdResult<UserId>> | undefined> {
+export async function extractUserIdFromRequestHeaders<UserId extends string | number>({
+    headers,
+    jwtParams,
+    csrfHeaderNameOption,
+    cookieName,
+    cookieNameSuffix,
+}: Readonly<{
+    headers: HeaderContainer;
+    jwtParams: Readonly<ParseJwtParams>;
+    csrfHeaderNameOption: Readonly<CsrfHeaderNameOption>;
+    cookieName: AuthCookie;
+    cookieNameSuffix?: string | undefined;
+}>): Promise<Readonly<UserIdResult<UserId>> | undefined> {
     try {
         const csrfToken = readCsrfTokenHeader(headers, csrfHeaderNameOption);
         const cookie = readHeader(headers, 'cookie');
@@ -85,7 +92,12 @@ export async function extractUserIdFromRequestHeaders<UserId extends string | nu
             return undefined;
         }
 
-        const jwt = await extractCookieJwt(cookie, jwtParams, cookieName);
+        const jwt = await extractCookieJwt({
+            rawCookie: cookie,
+            jwtParams,
+            cookieName,
+            cookieNameSuffix,
+        });
 
         if (!jwt || jwt.data.csrfToken !== csrfToken) {
             return undefined;
@@ -112,11 +124,17 @@ export async function extractUserIdFromRequestHeaders<UserId extends string | nu
  * @deprecated Prefer {@link extractUserIdFromRequestHeaders} instead: it is more secure.
  * @category Auth : Host
  */
-export async function insecureExtractUserIdFromCookieAlone<UserId extends string | number>(
-    headers: HeaderContainer,
-    jwtParams: Readonly<ParseJwtParams>,
-    cookieName: AuthCookie,
-): Promise<Readonly<UserIdResult<UserId>> | undefined> {
+export async function insecureExtractUserIdFromCookieAlone<UserId extends string | number>({
+    headers,
+    jwtParams,
+    cookieName,
+    cookieNameSuffix,
+}: Readonly<{
+    headers: HeaderContainer;
+    jwtParams: Readonly<ParseJwtParams>;
+    cookieName: AuthCookie;
+    cookieNameSuffix?: string | undefined;
+}>): Promise<Readonly<UserIdResult<UserId>> | undefined> {
     try {
         const cookie = readHeader(headers, 'cookie');
 
@@ -124,7 +142,12 @@ export async function insecureExtractUserIdFromCookieAlone<UserId extends string
             return undefined;
         }
 
-        const jwt = await extractCookieJwt(cookie, jwtParams, cookieName);
+        const jwt = await extractCookieJwt({
+            rawCookie: cookie,
+            jwtParams,
+            cookieName,
+            cookieNameSuffix,
+        });
 
         if (!jwt) {
             return undefined;
@@ -188,15 +211,18 @@ export async function generateSuccessfulLoginHeaders(
  * @category Auth : Host
  */
 export function generateLogoutHeaders(
-    cookieConfig: Readonly<SelectFrom<CookieParams, {hostOrigin: true; isDev: true}>>,
-    options?: Readonly<{
-        /**
-         * When `true`, the CSRF cookie is preserved (not cleared). Use this when clearing only one
-         * cookie type (e.g., the auth cookie) while keeping the other active session (e.g.,
-         * sign-up) that still needs its CSRF token.
-         */
-        preserveCsrf?: boolean | undefined;
-    }>,
+    cookieConfig: Readonly<SelectFrom<CookieParams, {hostOrigin: true; isDev: true}>> &
+        PartialWithUndefined<{cookieNameSuffix: string}>,
+    options?: Readonly<
+        PartialWithUndefined<{
+            /**
+             * When `true`, the CSRF cookie is preserved (not cleared). Use this when clearing only
+             * one cookie type (e.g., the auth cookie) while keeping the other active session (e.g.,
+             * sign-up) that still needs its CSRF token.
+             */
+            preserveCsrf: boolean;
+        }>
+    >,
 ): Record<string, string[]> {
     return {
         'set-cookie': [

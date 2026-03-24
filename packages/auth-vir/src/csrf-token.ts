@@ -1,7 +1,7 @@
 import {check} from '@augment-vir/assert';
 import {escapeStringForRegExp, randomString, safeMatch} from '@augment-vir/common';
 import {type RequireExactlyOne} from 'type-fest';
-import {AuthCookie} from './cookie.js';
+import {AuthCookie, resolveCookieName} from './cookie.js';
 
 /**
  * Generates a random, cryptographically secure CSRF token string.
@@ -51,8 +51,9 @@ export function resolveCsrfHeaderName(options: Readonly<CsrfHeaderNameOption>): 
  *
  * @category Auth : Client
  */
-export function getCurrentCsrfToken(): string | undefined {
-    const cookieRegExp = new RegExp(`${escapeStringForRegExp(AuthCookie.Csrf)}=([^;]+)`);
+export function getCurrentCsrfToken(cookieNameSuffix?: string | undefined): string | undefined {
+    const resolvedName = resolveCookieName(AuthCookie.Csrf, cookieNameSuffix);
+    const cookieRegExp = new RegExp(`${escapeStringForRegExp(resolvedName)}=([^;]+)`);
     const [
         ,
         value,

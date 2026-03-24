@@ -26,6 +26,11 @@ export type FrontendAuthClientConfig = Readonly<{
 }> &
     PartialWithUndefined<{
         /**
+         * Optional suffix appended to cookie names (e.g., `'staging'` produces
+         * `auth-vir-csrf-staging`). When `undefined`, cookie names are unchanged.
+         */
+        cookieNameSuffix: string;
+        /**
          * Determine if the current user can assume the identity of another user. If this is not
          * defined, all users will be blocked from assuming other user identities.
          */
@@ -163,7 +168,7 @@ export class FrontendAuthClient<AssumedUserParams extends JsonCompatibleObject =
      * combine them with these.
      */
     public createAuthenticatedRequestInit(): RequestInit {
-        const csrfToken = getCurrentCsrfToken();
+        const csrfToken = getCurrentCsrfToken(this.config.cookieNameSuffix);
 
         const assumedUser = this.getAssumedUser();
         const headers: HeadersInit = {

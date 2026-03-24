@@ -83,12 +83,12 @@ export async function createUser(
  */
 export async function getAuthenticatedUser(request: ClientRequest) {
     const userId = (
-        await extractUserIdFromRequestHeaders<MyUserId>(
-            request.getHeaders(),
+        await extractUserIdFromRequestHeaders<MyUserId>({
+            headers: request.getHeaders(),
             jwtParams,
-            csrfOption,
-            AuthCookie.Auth,
-        )
+            csrfHeaderNameOption: csrfOption,
+            cookieName: AuthCookie.Auth,
+        })
     )?.userId;
     const user = userId ? findUserInDatabaseById(userId) : undefined;
 

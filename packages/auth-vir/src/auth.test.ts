@@ -9,7 +9,7 @@ import {
     generateSuccessfulLoginHeaders,
     insecureExtractUserIdFromCookieAlone,
 } from './auth.js';
-import {AuthCookie} from './cookie.js';
+import {AuthCookie, resolveCookieName} from './cookie.js';
 import {getCurrentCsrfToken, resolveCsrfHeaderName} from './csrf-token.js';
 import {
     clearCsrfCookieInBrowser,
@@ -65,12 +65,12 @@ describe(extractUserIdFromRequestHeaders.name, () => {
 
         assert.strictEquals(
             (
-                await extractUserIdFromRequestHeaders(
+                await extractUserIdFromRequestHeaders({
                     headers,
                     jwtParams,
-                    testCsrfOption,
-                    AuthCookie.Auth,
-                )
+                    csrfHeaderNameOption: testCsrfOption,
+                    cookieName: AuthCookie.Auth,
+                })
             )?.userId,
             mockUserId,
         );
@@ -82,15 +82,15 @@ describe(extractUserIdFromRequestHeaders.name, () => {
 
         assert.strictEquals(
             (
-                await extractUserIdFromRequestHeaders(
-                    {
+                await extractUserIdFromRequestHeaders({
+                    headers: {
                         cookie: headers.cookie,
                         [testCsrfHeaderName]: [csrfTokenHeaderName],
                     },
                     jwtParams,
-                    testCsrfOption,
-                    AuthCookie.Auth,
-                )
+                    csrfHeaderNameOption: testCsrfOption,
+                    cookieName: AuthCookie.Auth,
+                })
             )?.userId,
             mockUserId,
         );
@@ -102,12 +102,12 @@ describe(extractUserIdFromRequestHeaders.name, () => {
 
         assert.strictEquals(
             (
-                await extractUserIdFromRequestHeaders(
-                    headersObject,
+                await extractUserIdFromRequestHeaders({
+                    headers: headersObject,
                     jwtParams,
-                    testCsrfOption,
-                    AuthCookie.Auth,
-                )
+                    csrfHeaderNameOption: testCsrfOption,
+                    cookieName: AuthCookie.Auth,
+                })
             )?.userId,
             mockUserId,
         );
@@ -116,51 +116,51 @@ describe(extractUserIdFromRequestHeaders.name, () => {
         const {headers, jwtParams} = await setupHeaders();
 
         assert.isUndefined(
-            await extractUserIdFromRequestHeaders(
-                omitObjectKeys(headers, ['cookie']),
+            await extractUserIdFromRequestHeaders({
+                headers: omitObjectKeys(headers, ['cookie']),
                 jwtParams,
-                testCsrfOption,
-                AuthCookie.Auth,
-            ),
+                csrfHeaderNameOption: testCsrfOption,
+                cookieName: AuthCookie.Auth,
+            }),
         );
     });
     it('rejects missing cookie with headers object', async () => {
         const {headers, jwtParams} = await setupHeaders();
 
         assert.isUndefined(
-            await extractUserIdFromRequestHeaders(
-                new Headers(omitObjectKeys(headers, ['cookie'])),
+            await extractUserIdFromRequestHeaders({
+                headers: new Headers(omitObjectKeys(headers, ['cookie'])),
                 jwtParams,
-                testCsrfOption,
-                AuthCookie.Auth,
-            ),
+                csrfHeaderNameOption: testCsrfOption,
+                cookieName: AuthCookie.Auth,
+            }),
         );
     });
     it('rejects missing CSRF token', async () => {
         const {headers, jwtParams} = await setupHeaders();
 
         assert.isUndefined(
-            await extractUserIdFromRequestHeaders(
-                omitObjectKeys(headers, [testCsrfHeaderName]),
+            await extractUserIdFromRequestHeaders({
+                headers: omitObjectKeys(headers, [testCsrfHeaderName]),
                 jwtParams,
-                testCsrfOption,
-                AuthCookie.Auth,
-            ),
+                csrfHeaderNameOption: testCsrfOption,
+                cookieName: AuthCookie.Auth,
+            }),
         );
     });
     it('rejects mismatched CSRF token', async () => {
         const {headers, jwtParams} = await setupHeaders();
 
         assert.isUndefined(
-            await extractUserIdFromRequestHeaders(
-                {
+            await extractUserIdFromRequestHeaders({
+                headers: {
                     ...headers,
                     [testCsrfHeaderName]: 'invalid token',
                 },
                 jwtParams,
-                testCsrfOption,
-                AuthCookie.Auth,
-            ),
+                csrfHeaderNameOption: testCsrfOption,
+                cookieName: AuthCookie.Auth,
+            }),
         );
     });
     it('rejects invalid JWT', async () => {
@@ -173,15 +173,15 @@ describe(extractUserIdFromRequestHeaders.name, () => {
         ].join(' ');
 
         assert.isUndefined(
-            await extractUserIdFromRequestHeaders(
-                {
+            await extractUserIdFromRequestHeaders({
+                headers: {
                     ...headers,
                     cookie,
                 },
                 jwtParams,
-                testCsrfOption,
-                AuthCookie.Auth,
-            ),
+                csrfHeaderNameOption: testCsrfOption,
+                cookieName: AuthCookie.Auth,
+            }),
         );
     });
     it('rejects invalid cookie', async () => {
@@ -193,15 +193,15 @@ describe(extractUserIdFromRequestHeaders.name, () => {
         ].join(' ');
 
         assert.isUndefined(
-            await extractUserIdFromRequestHeaders(
-                {
+            await extractUserIdFromRequestHeaders({
+                headers: {
                     ...headers,
                     cookie,
                 },
                 jwtParams,
-                testCsrfOption,
-                AuthCookie.Auth,
-            ),
+                csrfHeaderNameOption: testCsrfOption,
+                cookieName: AuthCookie.Auth,
+            }),
         );
     });
 });
@@ -211,11 +211,11 @@ describe(insecureExtractUserIdFromCookieAlone.name, () => {
         const {headers, jwtParams} = await setupHeaders();
 
         assert.isUndefined(
-            await insecureExtractUserIdFromCookieAlone(
-                omitObjectKeys(headers, ['cookie']),
+            await insecureExtractUserIdFromCookieAlone({
+                headers: omitObjectKeys(headers, ['cookie']),
                 jwtParams,
-                AuthCookie.Auth,
-            ),
+                cookieName: AuthCookie.Auth,
+            }),
         );
     });
     it('accepts missing CSRF token', async () => {
@@ -223,11 +223,11 @@ describe(insecureExtractUserIdFromCookieAlone.name, () => {
 
         assert.strictEquals(
             (
-                await insecureExtractUserIdFromCookieAlone(
-                    omitObjectKeys(headers, [testCsrfHeaderName]),
+                await insecureExtractUserIdFromCookieAlone({
+                    headers: omitObjectKeys(headers, [testCsrfHeaderName]),
                     jwtParams,
-                    AuthCookie.Auth,
-                )
+                    cookieName: AuthCookie.Auth,
+                })
             )?.userId,
             mockUserId,
         );
@@ -236,8 +236,13 @@ describe(insecureExtractUserIdFromCookieAlone.name, () => {
         const {headers, jwtParams} = await setupHeaders();
 
         assert.strictEquals(
-            (await insecureExtractUserIdFromCookieAlone(headers, jwtParams, AuthCookie.Auth))
-                ?.userId,
+            (
+                await insecureExtractUserIdFromCookieAlone({
+                    headers,
+                    jwtParams,
+                    cookieName: AuthCookie.Auth,
+                })
+            )?.userId,
             mockUserId,
         );
     });
@@ -251,14 +256,14 @@ describe(insecureExtractUserIdFromCookieAlone.name, () => {
         ].join(' ');
 
         assert.isUndefined(
-            await insecureExtractUserIdFromCookieAlone(
-                {
+            await insecureExtractUserIdFromCookieAlone({
+                headers: {
                     ...headers,
                     cookie,
                 },
                 jwtParams,
-                AuthCookie.Auth,
-            ),
+                cookieName: AuthCookie.Auth,
+            }),
         );
     });
     it('rejects invalid cookie', async () => {
@@ -270,14 +275,14 @@ describe(insecureExtractUserIdFromCookieAlone.name, () => {
         ].join(' ');
 
         assert.isUndefined(
-            await insecureExtractUserIdFromCookieAlone(
-                {
+            await insecureExtractUserIdFromCookieAlone({
+                headers: {
                     ...headers,
                     cookie,
                 },
                 jwtParams,
-                AuthCookie.Auth,
-            ),
+                cookieName: AuthCookie.Auth,
+            }),
         );
     });
 });
@@ -348,15 +353,15 @@ describe('sign-up then login flow', () => {
             [testCsrfHeaderName]: csrfToken,
         };
 
-        const userIdResult = await extractUserIdFromRequestHeaders(
-            requestHeaders,
-            {
+        const userIdResult = await extractUserIdFromRequestHeaders({
+            headers: requestHeaders,
+            jwtParams: {
                 ...mockJwtParams,
                 jwtKeys,
             },
-            testCsrfOption,
-            AuthCookie.Auth,
-        );
+            csrfHeaderNameOption: testCsrfOption,
+            cookieName: AuthCookie.Auth,
+        });
         assert.strictEquals(userIdResult?.userId, mockUserId);
     });
 
@@ -403,15 +408,115 @@ describe('sign-up then login flow', () => {
             [testCsrfHeaderName]: loginCsrfToken,
         };
 
-        const userIdResult = await extractUserIdFromRequestHeaders(
-            requestHeaders,
-            {
+        const userIdResult = await extractUserIdFromRequestHeaders({
+            headers: requestHeaders,
+            jwtParams: {
                 ...mockJwtParams,
                 jwtKeys,
             },
-            testCsrfOption,
-            AuthCookie.Auth,
-        );
+            csrfHeaderNameOption: testCsrfOption,
+            cookieName: AuthCookie.Auth,
+        });
         assert.strictEquals(userIdResult?.userId, mockUserId);
+    });
+});
+
+describe('cookieNameSuffix', () => {
+    const testSuffix = 'staging';
+
+    async function setupSuffixedHeaders(cookieNameSuffix?: string | undefined) {
+        clearCsrfCookieInBrowser();
+        clearCsrfCookieInBrowser(testSuffix);
+        const jwtKeys = await parseJwtKeys(await generateNewJwtKeys());
+
+        const serverHeaders = await generateSuccessfulLoginHeaders(mockUserId, {
+            cookieDuration: {
+                days: 20,
+            },
+            hostOrigin: 'https://www.example.com',
+            jwtParams: {
+                ...mockJwtParams,
+                jwtKeys,
+            },
+            cookieNameSuffix,
+        });
+
+        const setCookies = assertWrap.isArray(serverHeaders['set-cookie']);
+        simulateBrowserCookieStorage(setCookies, cookieNameSuffix);
+
+        const clientHeaders = {
+            cookie: setCookiesToRequestCookie(setCookies),
+            [testCsrfHeaderName]: assertWrap.isTruthy(getCurrentCsrfToken(cookieNameSuffix)),
+        };
+
+        return {
+            headers: clientHeaders,
+            setCookies,
+            jwtParams: {
+                ...mockJwtParams,
+                jwtKeys,
+            },
+        };
+    }
+
+    it('extractUserIdFromRequestHeaders with suffix reads a suffixed cookie', async () => {
+        const {headers, jwtParams} = await setupSuffixedHeaders(testSuffix);
+
+        assert.strictEquals(
+            (
+                await extractUserIdFromRequestHeaders({
+                    headers,
+                    jwtParams,
+                    csrfHeaderNameOption: testCsrfOption,
+                    cookieName: AuthCookie.Auth,
+                    cookieNameSuffix: testSuffix,
+                })
+            )?.userId,
+            mockUserId,
+        );
+    });
+
+    it('extractUserIdFromRequestHeaders with suffix cannot read a cookie without a suffix', async () => {
+        const {headers, jwtParams} = await setupSuffixedHeaders();
+
+        assert.isUndefined(
+            await extractUserIdFromRequestHeaders({
+                headers,
+                jwtParams,
+                csrfHeaderNameOption: testCsrfOption,
+                cookieName: AuthCookie.Auth,
+                cookieNameSuffix: testSuffix,
+            }),
+        );
+    });
+
+    it('extractUserIdFromRequestHeaders without suffix cannot read a suffixed cookie', async () => {
+        const {headers, jwtParams} = await setupSuffixedHeaders(testSuffix);
+
+        assert.isUndefined(
+            await extractUserIdFromRequestHeaders({
+                headers,
+                jwtParams,
+                csrfHeaderNameOption: testCsrfOption,
+                cookieName: AuthCookie.Auth,
+            }),
+        );
+    });
+
+    it('generateLogoutHeaders with suffix produces suffixed cookie names', () => {
+        const logoutHeaders = generateLogoutHeaders({
+            hostOrigin: 'my-origin',
+            isDev: true,
+            cookieNameSuffix: testSuffix,
+        });
+
+        const setCookies = logoutHeaders['set-cookie'];
+        const resolvedAuthName = resolveCookieName(AuthCookie.Auth, testSuffix);
+        const resolvedCsrfName = resolveCookieName(AuthCookie.Csrf, testSuffix);
+
+        assert.deepEquals(setCookies, [
+            `${resolvedAuthName}=redacted; Domain=my-origin; HttpOnly; Path=/; SameSite=Strict; MAX-AGE=0`,
+            `${resolvedCsrfName}=redacted; Domain=my-origin; Path=/; SameSite=Strict; MAX-AGE=0`,
+        ]);
     });
 });

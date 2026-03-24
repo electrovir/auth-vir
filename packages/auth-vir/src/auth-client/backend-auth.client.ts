@@ -25,6 +25,7 @@ import {
     clearCsrfCookie,
     generateAuthCookie,
     generateCsrfCookie,
+    resolveCookieName,
     type CookieParams,
 } from '../cookie.js';
 import {generateCsrfToken, type CsrfHeaderNameOption} from '../csrf-token.js';
@@ -186,6 +187,12 @@ export type BackendAuthClientConfig<
          * JWT embedded in the `HttpOnly` auth cookie.
          */
         csrfCookieOrigin: string;
+        /**
+         * Optional suffix appended to cookie names (e.g., `'staging'` produces `auth-staging`,
+         * `auth-vir-csrf-staging`). When `undefined`, cookie names are unchanged. Useful for
+         * running multiple environments on the same domain without cookie collisions.
+         */
+        cookieNameSuffix: string;
     }>
 >;
 
@@ -277,6 +284,7 @@ export class BackendAuthClient<
             jwtParams: await this.getJwtParams(),
             isDev: this.config.isDev,
             authCookie: isSignUpCookie ? AuthCookie.SignUp : AuthCookie.Auth,
+            cookieNameSuffix: this.config.cookieNameSuffix,
         };
     }
 
@@ -412,6 +420,7 @@ export class BackendAuthClient<
             const csrfCookie = generateCsrfCookie(userIdResult.csrfToken, {
                 ...cookieParams,
                 hostOrigin: this.resolveCsrfCookieOrigin(cookieParams.hostOrigin),
+                cookieNameSuffix: this.config.cookieNameSuffix,
             });
 
             return {
@@ -489,12 +498,13 @@ export class BackendAuthClient<
          */
         allowUserAuthRefresh: boolean;
     }): Promise<GetUserResult<DatabaseUser> | undefined> {
-        const userIdResult = await extractUserIdFromRequestHeaders<UserId>(
-            requestHeaders,
-            await this.getJwtParams(),
-            this.config.csrf,
-            isSignUpCookie ? AuthCookie.SignUp : AuthCookie.Auth,
-        );
+        const userIdResult = await extractUserIdFromRequestHeaders<UserId>({
+            headers: requestHeaders,
+            jwtParams: await this.getJwtParams(),
+            csrfHeaderNameOption: this.config.csrf,
+            cookieName: isSignUpCookie ? AuthCookie.SignUp : AuthCookie.Auth,
+            cookieNameSuffix: this.config.cookieNameSuffix,
+        });
         if (!userIdResult) {
             this.logForUser(
                 {
@@ -556,6 +566,7 @@ export class BackendAuthClient<
         const csrfCookie = generateCsrfCookie(userIdResult.csrfToken, {
             hostOrigin: this.resolveCsrfCookieOrigin(authCookieOrigin),
             isDev: this.config.isDev,
+            cookieNameSuffix: this.config.cookieNameSuffix,
         });
 
         return {
@@ -645,6 +656,7 @@ export class BackendAuthClient<
                 ? clearCsrfCookie({
                       hostOrigin: this.config.csrfCookieOrigin,
                       isDev: this.config.isDev,
+                      cookieNameSuffix: this.config.cookieNameSuffix,
                   })
                 : undefined;
 
@@ -682,6 +694,7 @@ export class BackendAuthClient<
         const csrfCookie = generateCsrfCookie(existingUserIdResult.csrfToken, {
             ...cookieParams,
             hostOrigin: this.resolveCsrfCookieOrigin(cookieParams.hostOrigin),
+            cookieNameSuffix: this.config.cookieNameSuffix,
         });
 
         return {
@@ -711,6 +724,7 @@ export class BackendAuthClient<
         const csrfCookie = generateCsrfCookie(csrfToken, {
             ...cookieParams,
             hostOrigin: this.resolveCsrfCookieOrigin(cookieParams.hostOrigin),
+            cookieNameSuffix: this.config.cookieNameSuffix,
         });
 
         return {
@@ -732,7 +746,13 @@ export class BackendAuthClient<
         isSignUpCookie: boolean;
     }): Promise<OutgoingHttpHeaders> {
         const oppositeCookieName = isSignUpCookie ? AuthCookie.Auth : AuthCookie.SignUp;
-        const hasExistingOppositeCookie = requestHeaders.cookie?.includes(`${oppositeCookieName}=`);
+        const resolvedOppositeCookieName = resolveCookieName(
+            oppositeCookieName,
+            this.config.cookieNameSuffix,
+        );
+        const hasExistingOppositeCookie = requestHeaders.cookie?.includes(
+            `${resolvedOppositeCookieName}=`,
+        );
 
         const discardOppositeCookieHeaders = hasExistingOppositeCookie
             ? generateLogoutHeaders(
@@ -746,12 +766,13 @@ export class BackendAuthClient<
               )
             : undefined;
 
-        const existingUserIdResult = await extractUserIdFromRequestHeaders<UserId>(
-            requestHeaders,
-            await this.getJwtParams(),
-            this.config.csrf,
-            isSignUpCookie ? AuthCookie.SignUp : AuthCookie.Auth,
-        );
+        const existingUserIdResult = await extractUserIdFromRequestHeaders<UserId>({
+            headers: requestHeaders,
+            jwtParams: await this.getJwtParams(),
+            csrfHeaderNameOption: this.config.csrf,
+            cookieName: isSignUpCookie ? AuthCookie.SignUp : AuthCookie.Auth,
+            cookieNameSuffix: this.config.cookieNameSuffix,
+        });
 
         const cookieParams = await this.getCookieParams({
             isSignUpCookie,
@@ -840,11 +861,12 @@ export class BackendAuthClient<
         allowUserAuthRefresh: boolean;
     }): Promise<GetUserResult<DatabaseUser> | undefined> {
         // eslint-disable-next-line @typescript-eslint/no-deprecated
-        const userIdResult = await insecureExtractUserIdFromCookieAlone<UserId>(
-            requestHeaders,
-            await this.getJwtParams(),
-            AuthCookie.Auth,
-        );
+        const userIdResult = await insecureExtractUserIdFromCookieAlone<UserId>({
+            headers: requestHeaders,
+            jwtParams: await this.getJwtParams(),
+            cookieName: AuthCookie.Auth,
+            cookieNameSuffix: this.config.cookieNameSuffix,
+        });
 
         if (!userIdResult) {
             this.logForUser(
