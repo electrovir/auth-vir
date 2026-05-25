@@ -167,7 +167,7 @@ describe(extractUserIdFromRequestHeaders.name, () => {
         const {headers, jwtParams} = await setupHeaders();
 
         const cookie = [
-            `auth=asdf;`,
+            'auth=asdf;',
             'HttpOnly;',
             'SameSite=Strict;',
         ].join(' ');
@@ -250,7 +250,7 @@ describe(insecureExtractUserIdFromCookieAlone.name, () => {
         const {headers, jwtParams} = await setupHeaders();
 
         const cookie = [
-            `auth=asdf;`,
+            'auth=asdf;',
             'HttpOnly;',
             'SameSite=Strict;',
         ].join(' ');

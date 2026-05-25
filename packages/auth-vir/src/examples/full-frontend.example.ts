@@ -51,7 +51,7 @@ export async function sendAuthenticatedRequest(
     });
 
     if (response.status === HttpStatus.Unauthorized) {
-        throw new Error(`User no longer logged in.`);
+        throw new Error('User no longer logged in.');
     } else {
         return response;
     }

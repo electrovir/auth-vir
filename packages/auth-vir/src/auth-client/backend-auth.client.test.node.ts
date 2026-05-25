@@ -80,6 +80,8 @@ async function setupBackendAuthClientTest<AssumedUserParams extends AnyObject = 
         },
     );
 
+    assert.hasKey(adapter, 'pgliteClient');
+
     await prismaApi.client.addData({
         data: seedDataOverride || defaultMockSeedData,
         prismaClient,
@@ -173,7 +175,7 @@ describe(BackendAuthClient.name, () => {
             }>();
         } finally {
             await prismaClient.$disconnect();
-            await adapter.client.close();
+            await adapter.pgliteClient.close();
         }
     });
     it('gets an insecure user', async (testContext) => {
@@ -216,7 +218,7 @@ describe(BackendAuthClient.name, () => {
             assert.deepEquals(insecureUserResult.user, mockUser);
         } finally {
             await prismaClient.$disconnect();
-            await adapter.client.close();
+            await adapter.pgliteClient.close();
         }
     });
     it('fails after session timeout', async (testContext) => {
@@ -274,7 +276,7 @@ describe(BackendAuthClient.name, () => {
             );
         } finally {
             await prismaClient.$disconnect();
-            await adapter.client.close();
+            await adapter.pgliteClient.close();
         }
     });
 });

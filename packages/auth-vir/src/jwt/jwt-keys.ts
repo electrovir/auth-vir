@@ -31,7 +31,11 @@ export type JwtKeys = Readonly<{
     signingKey: Readonly<CryptoKey>;
 }>;
 
-const signingKeyOptions: [HmacKeyGenParams, boolean, ReadonlyArray<KeyUsage>] = [
+const signingKeyOptions: [
+    HmacKeyGenParams,
+    boolean,
+    ReadonlyArray<KeyUsage>,
+] = [
     {
         name: 'HMAC',
         hash: 'SHA-512',
