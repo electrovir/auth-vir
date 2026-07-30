@@ -1,5 +1,12 @@
 import {assert, assertWrap, check} from '@augment-vir/assert';
-import {type AnyObject, ensureArray, filterMap, type SelectFrom, wait} from '@augment-vir/common';
+import {
+    type AnyObject,
+    type EmptyObject,
+    ensureArray,
+    filterMap,
+    type SelectFrom,
+    wait,
+} from '@augment-vir/common';
 import {describe, it, type UniversalTestContext} from '@augment-vir/test';
 import {type IncomingHttpHeaders, type OutgoingHttpHeaders} from 'node:http';
 import {
@@ -8,10 +15,9 @@ import {
     prismaApi,
     PrismaDatabaseEngine,
 } from 'prisma-vir';
-import {type EmptyObject} from 'type-fest';
 import {AuthCookie} from '../cookie.js';
 import {type CsrfHeaderNameOption, resolveCsrfHeaderName} from '../csrf-token.js';
-import {testPrismaMigrationsDirPath, testPrismaSchemaFilePath} from '../file-paths.mock.js';
+import {testPrismaConfigFilePath} from '../file-paths.mock.js';
 import {type Prisma, PrismaClient, type User} from '../generated/client.js';
 import {type UserId} from '../generated/models.js';
 import {generateNewJwtKeys} from '../jwt/jwt-keys.js';
@@ -69,8 +75,7 @@ async function setupBackendAuthClientTest<AssumedUserParams extends AnyObject = 
         PrismaDatabaseEngine.Postgres,
         PrismaClient,
         {
-            migrationsDirPath: testPrismaMigrationsDirPath,
-            schemaPath: testPrismaSchemaFilePath,
+            configPath: testPrismaConfigFilePath,
             connection: {
                 dev: {
                     resetDatabase: true,

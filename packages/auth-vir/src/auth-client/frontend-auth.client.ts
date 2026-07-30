@@ -1,5 +1,6 @@
 import {
     type createBlockingInterval,
+    type EmptyObject,
     HttpStatus,
     type JsonCompatibleObject,
     type MaybePromise,
@@ -8,7 +9,6 @@ import {
 } from '@augment-vir/common';
 import {type AnyDuration} from 'date-vir';
 import {listenToActivity} from 'detect-activity';
-import {type EmptyObject} from 'type-fest';
 import {
     type CsrfHeaderNameOption,
     getCurrentCsrfToken,
@@ -136,13 +136,13 @@ export class FrontendAuthClient<AssumedUserParams extends JsonCompatibleObject =
         if (!assumedUserParams) {
             localStorage.removeItem(storageKey);
             return true;
-        } else if (!(await this.config.canAssumeUser?.())) {
+        } else if (await this.config.canAssumeUser?.()) {
+            localStorage.setItem(storageKey, JSON.stringify(assumedUserParams));
+
+            return true;
+        } else {
             return false;
         }
-
-        localStorage.setItem(storageKey, JSON.stringify(assumedUserParams));
-
-        return true;
     }
 
     /** Gets the assumed user params stored in local storage, if any. */

@@ -95,21 +95,22 @@ export async function generateNewJwtKeys(): Promise<RawJwtKeys> {
 export async function parseJwtKeys(rawKeys: Readonly<RawJwtKeys>): Promise<Readonly<JwtKeys>> {
     if (!rawKeys.encryptionKey) {
         throw new Error('JWT encryption key is empty');
-    } else if (!rawKeys.signingKey) {
+    } else if (rawKeys.signingKey) {
+        return {
+            encryptionKey: base64url.decode(rawKeys.encryptionKey),
+            signingKey: await crypto.subtle.importKey(
+                'jwk',
+                {
+                    k: rawKeys.signingKey,
+                    alg: 'HS512',
+                    ext: signingKeyOptions[1],
+                    key_ops: [...signingKeyOptions[2]],
+                    kty: 'oct',
+                },
+                ...signingKeyOptions,
+            ),
+        };
+    } else {
         throw new Error('JWT signing key is empty');
     }
-    return {
-        encryptionKey: base64url.decode(rawKeys.encryptionKey),
-        signingKey: await crypto.subtle.importKey(
-            'jwk',
-            {
-                k: rawKeys.signingKey,
-                alg: 'HS512',
-                ext: signingKeyOptions[1],
-                key_ops: [...signingKeyOptions[2]],
-                kty: 'oct',
-            },
-            ...signingKeyOptions,
-        ),
-    };
 }

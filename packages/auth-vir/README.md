@@ -54,7 +54,7 @@ For the easiest usage, construct and use `BackendAuthClient` on your server and 
 Use this on your host / server / backend to authenticate client / frontend requests.
 
 1. Expose the [`AuthHeaderName.CsrfToken`](https://electrovir.github.io/auth-vir/variables/AuthHeaderName.html) (or just `'csrf-token'`) header via CORS headers with either of the following options:
-    1. Set `customHeaders: [AuthHeaderName.CsrfToken]` in `implementService` from [`@rest-vir/implement-service`](https://www.npmjs.com/package/@rest-vir/implement-service).
+    1. Set `customHeaders: [AuthHeaderName.CsrfToken]` in `implementApi` from [`@rest-vir/host`](https://www.npmjs.com/package/@rest-vir/host).
     2. Set the header `Access-Control-Allow-Headers` to (at least) `AuthHeaderName.CsrfToken`.
 2. Set the `Access-Control-Allow-Origin` header (it cannot be `*`) and properly implement CORS headers and responses.
 3. Generate JWT signing and encryption keys with one of the following:
@@ -354,7 +354,7 @@ export async function logout(logoutUrl: string) {
 All of these configurations must be set for the auth exports in this package to function properly:
 
 -   Expose the [`AuthHeaderName.CsrfToken`](https://electrovir.github.io/auth-vir/variables/AuthHeaderName.html) (or just `'csrf-token'`) header via CORS headers with either of the following options:
-    1.  Set `customHeaders: [AuthHeaderName.CsrfToken]` in `implementService` from [`@rest-vir/implement-service`](https://www.npmjs.com/package/@rest-vir/implement-service).
+    1.  Set `customHeaders: [AuthHeaderName.CsrfToken]` in `implementApi` from [`@rest-vir/host`](https://www.npmjs.com/package/@rest-vir/host).
     2.  Set the header `Access-Control-Allow-Headers` to (at least) `AuthHeaderName.CsrfToken`.
 -   Set `credentials: include` in all fetch requests on the client that need to use or set the auth cookie.
 -   Server CORS should set `Access-Control-Allow-Origin` (it cannot be `*`).

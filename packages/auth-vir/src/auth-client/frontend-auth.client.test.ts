@@ -2,11 +2,11 @@ import {assert} from '@augment-vir/assert';
 import {
     HttpStatus,
     randomString,
+    type EmptyObject,
     type JsonCompatibleObject,
     type SelectFrom,
 } from '@augment-vir/common';
 import {describe, it} from '@augment-vir/test';
-import {type EmptyObject} from 'type-fest';
 import {
     generateCsrfToken,
     getCurrentCsrfToken,

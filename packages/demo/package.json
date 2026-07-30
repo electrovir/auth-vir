@@ -1,8 +1,8 @@
 {
     "name": "@evir/demo",
-    "version": "5.2.0",
+    "version": "5.2.1",
     "private": true,
-    "license": "(MIT or CC0 1.0)",
+    "license": "(MIT OR CC0-1.0)",
     "type": "module",
     "scripts": {
         "compile": "virmator compile",
@@ -10,19 +10,19 @@
         "test": "exit 0"
     },
     "dependencies": {
-        "@augment-vir/assert": "^31.70.0",
-        "@augment-vir/common": "^31.70.0",
-        "@rest-vir/define-service": "^1.7.2",
-        "@rest-vir/implement-service": "^1.7.2",
-        "@rest-vir/run-service": "^1.7.2",
-        "auth-vir": "^5.2.0",
-        "element-vir": "^26.17.0",
-        "vira": "^31.18.2"
+        "@augment-vir/assert": "^32.2.1",
+        "@augment-vir/common": "^32.2.1",
+        "@rest-vir/api": "^2.2.1",
+        "@rest-vir/host": "^2.2.1",
+        "auth-vir": "^5.2.1",
+        "element-vir": "^26.17.2",
+        "object-shape-tester": "^6.14.1",
+        "vira": "^31.28.3"
     },
     "devDependencies": {
-        "runstorm": "^1.0.0",
+        "runstorm": "^1.0.6",
         "typescript": "^5.9.3",
-        "vite": "^8.0.13"
+        "vite": "^8.1.5"
     },
     "engines": {
         "node": ">=22"

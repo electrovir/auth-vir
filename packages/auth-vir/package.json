@@ -1,6 +1,6 @@
 {
     "name": "auth-vir",
-    "version": "5.2.0",
+    "version": "5.2.1",
     "description": "Auth made easy and secure via JWT cookies, CSRF tokens, and password hashing helpers.",
     "keywords": [
         "auth",
@@ -19,7 +19,7 @@
         "type": "git",
         "url": "git+https://github.com/electrovir/auth-vir.git"
     },
-    "license": "(MIT or CC0 1.0)",
+    "license": "(MIT OR CC0-1.0)",
     "author": {
         "name": "electrovir",
         "url": "https://github.com/electrovir"
@@ -33,7 +33,7 @@
         "build": "virmator frontend build",
         "compile": "virmator compile",
         "docs": "virmator docs",
-        "init": "node -e \"require('fs').rmSync('src/generated', { recursive: true, force: true })\" && prisma generate --no-hints --schema test-files/schema.prisma",
+        "init": "node -e \"require('fs').rmSync('src/generated', { recursive: true, force: true })\" && prisma generate --no-hints --config test-files/prisma.config.ts",
         "test": "runstorm --names web,node, \"npm run test:web\" \"npm run test:node\"",
         "test:docs": "virmator docs check",
         "test:node": "virmator test node 'src/**/*.test.node.ts'",
@@ -41,29 +41,28 @@
         "test:web": "virmator test web"
     },
     "dependencies": {
-        "@augment-vir/assert": "^31.70.0",
-        "@augment-vir/common": "^31.70.0",
-        "date-vir": "^8.3.2",
+        "@augment-vir/assert": "^32.2.1",
+        "@augment-vir/common": "^32.2.1",
+        "date-vir": "^8.6.2",
         "detect-activity": "^1.0.0",
         "hash-wasm": "^4.12.0",
-        "jose": "^6.2.3",
-        "object-shape-tester": "^6.13.0",
-        "type-fest": "^5.6.0",
-        "url-vir": "^2.1.9"
+        "jose": "^6.2.4",
+        "object-shape-tester": "^6.14.1",
+        "url-vir": "^2.1.10"
     },
     "devDependencies": {
-        "@augment-vir/test": "^31.70.0",
-        "@prisma/client": "^6.19.2",
-        "@types/node": "^25.9.1",
-        "@web/dev-server-esbuild": "^1.0.5",
-        "@web/test-runner": "^0.20.2",
-        "@web/test-runner-commands": "^0.9.0",
-        "@web/test-runner-playwright": "^0.11.1",
-        "@web/test-runner-visual-regression": "^0.10.0",
+        "@augment-vir/test": "^32.2.1",
+        "@prisma/client": "^7.9.0",
+        "@types/node": "^26.1.1",
+        "@web/dev-server-esbuild": "^2.0.0",
+        "@web/test-runner": "^1.0.0",
+        "@web/test-runner-commands": "^1.0.1",
+        "@web/test-runner-playwright": "^1.0.0",
+        "@web/test-runner-visual-regression": "^1.0.1",
         "istanbul-smart-text-reporter": "^1.1.5",
-        "markdown-code-example-inserter": "^3.0.5",
-        "prisma-vir": "^3.0.0",
-        "typedoc": "^0.28.19",
+        "markdown-code-example-inserter": "^3.0.6",
+        "prisma-vir": "^4.0.1",
+        "typedoc": "^0.28.20",
         "typescript": "^5.9.3"
     },
     "engines": {

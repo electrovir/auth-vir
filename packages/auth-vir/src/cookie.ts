@@ -3,10 +3,10 @@ import {
     escapeStringForRegExp,
     safeMatch,
     type PartialWithUndefined,
+    type Primitive,
     type SelectFrom,
 } from '@augment-vir/common';
 import {convertDuration, type AnyDuration} from 'date-vir';
-import {type Primitive} from 'type-fest';
 import {parseUrl} from 'url-vir';
 import {type CreateJwtParams, type ParseJwtParams, type ParsedJwt} from './jwt/jwt.js';
 import {createUserJwt, parseUserJwt, type JwtUserData} from './jwt/user-jwt.js';

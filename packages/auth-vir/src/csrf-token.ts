@@ -1,6 +1,10 @@
 import {check} from '@augment-vir/assert';
-import {escapeStringForRegExp, randomString, safeMatch} from '@augment-vir/common';
-import {type RequireExactlyOne} from 'type-fest';
+import {
+    escapeStringForRegExp,
+    randomString,
+    safeMatch,
+    type RequireExactlyOne,
+} from '@augment-vir/common';
 import {AuthCookie, resolveCookieName} from './cookie.js';
 
 /**

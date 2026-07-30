@@ -7,11 +7,19 @@ import {
     mergeDeep,
     stringify,
 } from '@augment-vir/common';
-import {generateApi, mapServiceDevPort} from '@rest-vir/define-service';
+import {extractEndpointResult, findDevServerPort, RestVirClient} from '@rest-vir/api';
 import {getCurrentCsrfToken, resolveCsrfHeaderName, type CsrfHeaderNameOption} from 'auth-vir';
 import {asyncProp, css, defineElement, html, listen, nothing, type AsyncProp} from 'element-vir';
 import {LoaderAnimated24Icon, ViraButton, ViraIcon, ViraInput, ViraInputType} from 'vira';
-import {demoService, type DemoService} from '../../demo-service-definition.js';
+import {
+    demoApi,
+    demoApiStartOrigin,
+    loginEndpoint,
+    logoutEndpoint,
+    signUpEndpoint,
+    userEndpoint,
+    type DemoUser,
+} from '../../demo-api.js';
 
 const demoCsrfOption: CsrfHeaderNameOption = {
     csrfHeaderPrefix: 'demo',
@@ -20,7 +28,7 @@ const demoCsrfHeaderName = resolveCsrfHeaderName(demoCsrfOption);
 
 function setupAuthState() {
     console.info('[auth-setup] Setting up auth state...');
-    const deferredDemoApi = new DeferredPromise<DemoApi>();
+    const deferredDemoApi = new DeferredPromise<DemoApiClient>();
 
     const asyncUser = asyncProp({
         defaultValue: loadUser(deferredDemoApi.promise),
@@ -42,9 +50,7 @@ function setupAuthState() {
     };
 }
 
-async function loadUser(
-    apiPromise: Promise<DemoApi>,
-): Promise<DemoService['endpoints']['/user']['ResponseType'] | undefined> {
+async function loadUser(apiPromise: Promise<DemoApiClient>): Promise<DemoUser | undefined> {
     console.info('[loadUser] Checking for existing CSRF token...');
     const csrfToken = getCurrentCsrfToken();
 
@@ -55,8 +61,8 @@ async function loadUser(
 
     if (csrfToken) {
         console.info('[loadUser] Have CSRF token, fetching /user...');
-        const api = await apiPromise;
-        const output = await api.endpoints['/user'].fetch({
+        const client = await apiPromise;
+        const output = await client.fetch(userEndpoint).GET({
             options: {
                 headers: {
                     [demoCsrfHeaderName]: csrfToken,
@@ -64,11 +70,11 @@ async function loadUser(
             },
         });
 
-        console.info('[loadUser] /user response ok:', output.ok);
-        console.info('[loadUser] /user response data:', output.data);
+        console.info('[loadUser] /user response status:', output.Ok?.status);
+        console.info('[loadUser] /user response data:', output.Ok?.responseData);
 
-        if (output.ok) {
-            return output.data;
+        if (output.Ok) {
+            return output.Ok.responseData;
         }
     }
 
@@ -76,63 +82,61 @@ async function loadUser(
     return undefined;
 }
 
-type DemoApi = Awaited<ReturnType<typeof connectToDemoApi>>;
+type DemoApiClient = RestVirClient<typeof demoApi>;
 
-export async function connectToDemoApi(
-    asyncUser: AsyncProp<DemoService['endpoints']['/user']['ResponseType'] | undefined, any>,
-) {
+export async function connectToDemoApi(asyncUser: AsyncProp<DemoUser | undefined, any>) {
     console.info('[connectToDemoApi] Creating API connection...');
-    return generateApi(await mapServiceDevPort(demoService), {
-        endpointFetch: {
-            async fetch(url, init) {
-                console.info('[fetch-wrapper] Fetching:', url);
-                console.info('[fetch-wrapper] Init method:', init.method);
 
-                const csrfToken = getCurrentCsrfToken();
-                console.info(
-                    '[fetch-wrapper] CSRF token for request:',
-                    csrfToken ? `present (${csrfToken.slice(0, 20)}...)` : 'MISSING',
-                );
+    const devServer = await findDevServerPort(demoApi, {
+        startOrigin: demoApiStartOrigin,
+    });
 
-                const extraHeaders = csrfToken
-                    ? {
-                          [demoCsrfHeaderName]: csrfToken,
-                      }
-                    : {};
+    if (!devServer) {
+        throw new Error('Failed to find the demo api server port.');
+    }
 
-                const combinedInit = mergeDeep(init, {
-                    headers: extraHeaders,
-                    credentials: 'include',
-                });
+    return new RestVirClient(demoApi, devServer.origin, async (url, init) => {
+        console.info('[fetch-wrapper] Fetching:', url);
+        console.info('[fetch-wrapper] Init method:', init.method);
 
-                console.info(
-                    '[fetch-wrapper] Request headers:',
-                    JSON.stringify(combinedInit.headers),
-                );
-                console.info('[fetch-wrapper] Request credentials:', combinedInit.credentials);
+        const csrfToken = getCurrentCsrfToken();
+        console.info(
+            '[fetch-wrapper] CSRF token for request:',
+            csrfToken ? `present (${csrfToken.slice(0, 20)}...)` : 'MISSING',
+        );
 
-                const response = await globalThis.fetch(url, combinedInit);
+        const extraHeaders = csrfToken
+            ? {
+                  [demoCsrfHeaderName]: csrfToken,
+              }
+            : {};
 
-                console.info('[fetch-wrapper] Response status:', response.status);
-                console.info('[fetch-wrapper] Response headers:');
-                response.headers.forEach((value, key) => {
-                    console.info(
-                        `  ${key}: ${key === 'set-cookie' ? value.slice(0, 80) + '...' : value}`,
-                    );
-                });
+        const combinedInit = mergeDeep(init, {
+            headers: extraHeaders,
+            credentials: 'include',
+        });
 
-                /**
-                 * If any request comes back as unauthorized then we need to immediately log out the
-                 * current user.
-                 */
-                if (response.status === HttpStatus.Unauthorized) {
-                    console.info('[fetch-wrapper] Got 401 Unauthorized, clearing user state');
-                    asyncUser.setValue(undefined);
-                }
+        console.info('[fetch-wrapper] Request headers:', JSON.stringify(combinedInit.headers));
+        console.info('[fetch-wrapper] Request credentials:', combinedInit.credentials);
 
-                return response;
-            },
-        },
+        const response = await globalThis.fetch(url, combinedInit);
+
+        console.info('[fetch-wrapper] Response status:', response.status);
+        console.info('[fetch-wrapper] Response headers:');
+        response.headers.forEach((value, key) => {
+            console.info(`  ${key}: ${key === 'set-cookie' ? value.slice(0, 80) + '...' : value}`);
+        });
+
+        /**
+         * If any request comes back as unauthorized then we need to immediately log out the current
+         * user.
+         */
+        if (response.status === HttpStatus.Unauthorized) {
+            console.info('[fetch-wrapper] Got 401 Unauthorized, clearing user state');
+            asyncUser.setValue(undefined);
+        }
+
+        return response;
     });
 }
 
@@ -199,11 +203,11 @@ export const DemoApp = defineElement()({
             console.info('[login] Username:', state.usernameInput);
             console.info('[login] Password length:', state.passwordInput.length);
 
-            const api: DemoApi | undefined = state.api.isNotError()
+            const client: DemoApiClient | undefined = state.api.isNotError()
                 ? await state.api.value
                 : undefined;
 
-            if (!api) {
+            if (!client) {
                 console.error('[login] API not available, aborting');
                 return;
             }
@@ -212,29 +216,28 @@ export const DemoApp = defineElement()({
                 status,
             });
 
-            const endpoint =
-                status === LoginStatus.LoggingIn
-                    ? api.endpoints['/login']
-                    : api.endpoints['/sign-up'];
+            const isLoggingIn = status === LoginStatus.LoggingIn;
 
-            console.info(
-                '[login] Using endpoint:',
-                status === LoginStatus.LoggingIn ? '/login' : '/sign-up',
-            );
+            console.info('[login] Using endpoint:', isLoggingIn ? '/login' : '/sign-up');
 
             try {
-                const response = await endpoint.fetch({
-                    requestData: {
-                        password: state.passwordInput,
-                        username: state.usernameInput,
-                    },
-                });
+                const requestData = {
+                    password: state.passwordInput,
+                    username: state.usernameInput,
+                };
+                const response = isLoggingIn
+                    ? await client.fetch(loginEndpoint).POST({
+                          requestData,
+                      })
+                    : await client.fetch(signUpEndpoint).POST({
+                          requestData,
+                      });
+                const result = extractEndpointResult(response);
 
-                console.info('[login] Response ok:', response.ok);
-                console.info('[login] Response status:', response.response.status);
-                console.info('[login] Response data:', JSON.stringify(response.data));
+                console.info('[login] Response status:', result.status);
+                console.info('[login] Response data:', JSON.stringify(result.responseData));
                 console.info('[login] Response headers:');
-                response.response.headers.forEach((value, key) => {
+                result.response.headers.forEach((value, key) => {
                     console.info(
                         `  ${key}:`,
                         value.length > 100 ? value.slice(0, 100) + '...' : value,
@@ -248,17 +251,17 @@ export const DemoApp = defineElement()({
                     storedCsrf ? `yes (${storedCsrf.slice(0, 20)}...)` : 'NO - MISSING',
                 );
 
-                if (response.ok) {
+                if (response.Ok) {
                     console.info('[login] Login successful, setting user data');
-                    state.authenticatedUser.setValue(response.data);
+                    state.authenticatedUser.setValue(response.Ok.responseData);
 
                     updateState({
                         status: undefined,
                     });
                 } else {
                     const errorMessage = [
-                        status === LoginStatus.LoggingIn ? 'Login failed' : 'Sign up failed',
-                        stringify(response.data),
+                        isLoggingIn ? 'Login failed' : 'Sign up failed',
+                        stringify(result.responseData),
                     ]
                         .filter(check.isTruthy)
                         .join(': ');
@@ -363,12 +366,12 @@ export const DemoApp = defineElement()({
                     })}
                         ${listen('click', async () => {
                             console.info('[logout] Calling /logout endpoint...');
-                            const api: DemoApi | undefined = state.api.isNotError()
+                            const client: DemoApiClient | undefined = state.api.isNotError()
                                 ? await state.api.value
                                 : undefined;
 
-                            if (api) {
-                                await api.endpoints['/logout'].fetch({});
+                            if (client) {
+                                await client.fetch(logoutEndpoint).POST();
                             }
 
                             console.info('[logout] Cookies cleared by server, clearing user state');
