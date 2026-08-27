@@ -60,11 +60,12 @@ describe('user JWT', () => {
         );
 
         await assert.throws(
-            () =>
-                parseUserJwt(jwt, {
+            () => {
+                return parseUserJwt(jwt, {
                     ...mockJwtParams,
                     jwtKeys,
-                }),
+                });
+            },
             {
                 matchMessage: 'wrong data',
             },

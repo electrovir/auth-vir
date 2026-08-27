@@ -83,11 +83,12 @@ describe(parseJwt.name, () => {
                 .encrypt(jwtKeys.encryptionKey);
 
             await assert.throws(
-                () =>
-                    parseJwt(jwt, {
+                () => {
+                    return parseJwt(jwt, {
                         ...mockJwtParams,
                         jwtKeys,
-                    }),
+                    });
+                },
                 {
                     matchMessage: 'Invalid signing protected header',
                 },
@@ -127,11 +128,12 @@ describe(parseJwt.name, () => {
             .encrypt(jwtKeys.encryptionKey);
 
         await assert.throws(
-            () =>
-                parseJwt(jwt, {
+            () => {
+                return parseJwt(jwt, {
                     ...mockJwtParams,
                     jwtKeys,
-                }),
+                });
+            },
             {
                 matchMessage: 'Invalid encryption protected header',
             },
@@ -150,11 +152,12 @@ describe(parseJwt.name, () => {
             .encrypt(jwtKeys.encryptionKey);
 
         await assert.throws(
-            () =>
-                parseJwt(jwt, {
+            () => {
+                return parseJwt(jwt, {
                     ...mockJwtParams,
                     jwtKeys,
-                }),
+                });
+            },
             {
                 matchMessage: 'Decrypted jwt is not a string',
             },
@@ -191,8 +194,8 @@ describe(parseJwt.name, () => {
         const jwtKeys = await parseJwtKeys(await generateNewJwtKeys());
 
         await assert.throws(
-            async () =>
-                await parseJwt(
+            async () => {
+                return await parseJwt(
                     await createJwt(mockData, {
                         ...mockJwtParams,
                         jwtKeys,
@@ -204,7 +207,8 @@ describe(parseJwt.name, () => {
                         ...mockJwtParams,
                         jwtKeys,
                     },
-                ),
+                );
+            },
             {
                 matchMessage: '"iat" claim timestamp check failed',
             },
@@ -230,14 +234,15 @@ describe(parseJwt.name, () => {
         });
 
         await assert.throws(
-            async () =>
-                await parseJwt(jwt, {
+            async () => {
+                return await parseJwt(jwt, {
                     ...mockJwtParams,
                     jwtKeys,
                     allowedClockSkew: {
                         seconds: 0,
                     },
-                }),
+                });
+            },
             {
                 matchMessage: '"exp" claim timestamp check failed',
             },
@@ -251,8 +256,8 @@ describe(parseJwt.name, () => {
         const jwtKeys = await parseJwtKeys(await generateNewJwtKeys());
 
         await assert.throws(
-            async () =>
-                await parseJwt(
+            async () => {
+                return await parseJwt(
                     await createJwt(mockData, {
                         ...mockJwtParams,
                         jwtKeys,
@@ -264,7 +269,8 @@ describe(parseJwt.name, () => {
                         ...mockJwtParams,
                         jwtKeys,
                     },
-                ),
+                );
+            },
             {
                 matchMessage: '"nbf" claim timestamp check failed',
             },

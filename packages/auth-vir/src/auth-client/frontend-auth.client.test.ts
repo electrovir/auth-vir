@@ -159,10 +159,11 @@ describe(FrontendAuthClient.name, () => {
         const {frontendAuthClient, callCounts} = createMockFrontendAuthClient();
 
         await assert.throws(
-            () =>
-                frontendAuthClient.handleLoginResponse({
+            () => {
+                return frontendAuthClient.handleLoginResponse({
                     ok: false,
-                }),
+                });
+            },
             {
                 matchMessage: 'response failed',
             },

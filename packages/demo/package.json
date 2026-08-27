@@ -10,19 +10,19 @@
         "test": "exit 0"
     },
     "dependencies": {
-        "@augment-vir/assert": "^32.2.1",
-        "@augment-vir/common": "^32.2.1",
-        "@rest-vir/api": "^2.2.1",
-        "@rest-vir/host": "^2.2.1",
+        "@augment-vir/assert": "^32.2.3",
+        "@augment-vir/common": "^32.2.3",
+        "@rest-vir/api": "^2.3.1",
+        "@rest-vir/host": "^2.3.1",
         "auth-vir": "^5.2.1",
-        "element-vir": "^26.17.2",
-        "object-shape-tester": "^6.14.1",
-        "vira": "^31.28.3"
+        "element-vir": "^26.17.3",
+        "object-shape-tester": "^6.15.0",
+        "vira": "^31.31.6"
     },
     "devDependencies": {
         "runstorm": "^1.0.6",
         "typescript": "^5.9.3",
-        "vite": "^8.1.5"
+        "vite": "^8.2.2"
     },
     "engines": {
         "node": ">=22"
