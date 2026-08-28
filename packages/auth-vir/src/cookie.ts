@@ -181,7 +181,11 @@ export function clearAuthCookie(
         ),
         value: 'redacted',
         httpOnly: true,
-        cookieConfig,
+        cookieConfig: {
+            ...cookieConfig,
+            /** Force `MAX-AGE=0` so the browser deletes the cookie. */
+            cookieDuration: undefined,
+        },
     });
 }
 
@@ -198,7 +202,11 @@ export function clearCsrfCookie(
         name: resolveCookieName(AuthCookie.Csrf, cookieConfig.cookieNameSuffix),
         value: 'redacted',
         httpOnly: false,
-        cookieConfig,
+        cookieConfig: {
+            ...cookieConfig,
+            /** Same `MAX-AGE=0` reasoning as {@link clearAuthCookie}. */
+            cookieDuration: undefined,
+        },
     });
 }
 

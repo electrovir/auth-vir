@@ -4,6 +4,8 @@ import {
     type EmptyObject,
     ensureArray,
     filterMap,
+    removeDuplicates,
+    safeMatch,
     type SelectFrom,
     wait,
 } from '@augment-vir/common';
@@ -50,6 +52,17 @@ function extractCsrfTokenFromSetCookies(headers: Readonly<OutgoingHttpHeaders>):
         'Missing CSRF Set-Cookie.',
     );
     return assertWrap.isTruthy(csrfCookie.split(';')[0]?.split('=')[1]);
+}
+
+/** The unique, sorted set of `Domain` values across every `Set-Cookie` in the given headers. */
+function extractSetCookieDomains(headers: Readonly<OutgoingHttpHeaders>): string[] {
+    return removeDuplicates(
+        filterMap(
+            ensureArray(headers['set-cookie'] || []),
+            (cookie) => safeMatch(cookie, /Domain=([^;]+)/)[1],
+            check.isTruthy,
+        ),
+    ).sort();
 }
 
 const defaultMockSeedData: PrismaAddModelData<PrismaClient, Prisma.TypeMap> = {
@@ -221,6 +234,72 @@ describe(BackendAuthClient.name, () => {
             assert.isDefined(insecureUserResult, 'No insecure user result.');
 
             assert.deepEquals(insecureUserResult.user, mockUser);
+        } finally {
+            await prismaClient.$disconnect();
+            await adapter.pgliteClient.close();
+        }
+    });
+    it('clears cookies on the origin generateServiceOrigin resolved', async (testContext) => {
+        const {backendAuthClient, mockUser, prismaClient, adapter} =
+            await setupBackendAuthClientTest({
+                testContext,
+                authClientConfigOverrides: {
+                    serviceOrigin: 'https://not-the-browsers-host.example.com',
+                    generateServiceOrigin({requestHeaders}) {
+                        return requestHeaders.origin;
+                    },
+                },
+            });
+
+        try {
+            assert.isDefined(mockUser, 'Failed to find mock user.');
+
+            const requestHeaders: IncomingHttpHeaders = {
+                origin: 'https://the-browsers-host.example.com',
+            };
+
+            const loginHeaders = await backendAuthClient.createLoginHeaders({
+                isSignUpCookie: false,
+                requestHeaders,
+                userId: mockUser.id,
+            });
+            const logoutHeaders = await backendAuthClient.createLogoutHeaders({
+                allCookies: true,
+                requestHeaders,
+            });
+
+            /**
+             * A cookie is only cleared when the clearing `set-cookie` carries the same `Domain` the
+             * cookie was set on, so logout must resolve the exact origin login did.
+             */
+            const loginDomains = extractSetCookieDomains(loginHeaders);
+            assert.deepEquals(loginDomains, ['the-browsers-host.example.com']);
+            assert.deepEquals(extractSetCookieDomains(logoutHeaders), loginDomains);
+        } finally {
+            await prismaClient.$disconnect();
+            await adapter.pgliteClient.close();
+        }
+    });
+    it('falls back to the configured serviceOrigin when generateServiceOrigin returns nothing', async (testContext) => {
+        const {backendAuthClient, prismaClient, adapter} = await setupBackendAuthClientTest({
+            testContext,
+            authClientConfigOverrides: {
+                serviceOrigin: 'https://the-clients-configured-origin.example.com',
+                generateServiceOrigin() {
+                    return undefined;
+                },
+            },
+        });
+
+        try {
+            const logoutHeaders = await backendAuthClient.createLogoutHeaders({
+                allCookies: true,
+                requestHeaders: {},
+            });
+
+            assert.deepEquals(extractSetCookieDomains(logoutHeaders), [
+                'the-clients-configured-origin.example.com',
+            ]);
         } finally {
             await prismaClient.$disconnect();
             await adapter.pgliteClient.close();

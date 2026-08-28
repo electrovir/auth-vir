@@ -1,6 +1,6 @@
 {
     "name": "@evir/demo",
-    "version": "5.2.1",
+    "version": "6.0.0",
     "private": true,
     "license": "(MIT OR CC0-1.0)",
     "type": "module",
@@ -14,7 +14,7 @@
         "@augment-vir/common": "^32.2.3",
         "@rest-vir/api": "^2.3.1",
         "@rest-vir/host": "^2.3.1",
-        "auth-vir": "^5.2.1",
+        "auth-vir": "^6.0.0",
         "element-vir": "^26.17.3",
         "object-shape-tester": "^6.15.0",
         "vira": "^31.31.6"

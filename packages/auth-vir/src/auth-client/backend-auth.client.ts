@@ -613,8 +613,12 @@ export class BackendAuthClient<
                 allCookies: true;
                 isSignUpCookie: boolean;
             }> & {
-                /** Overrides the client's already established `serviceOrigin`. */
-                serviceOrigin?: string | undefined;
+                /**
+                 * The to-log-out user's request headers, passed to `generateServiceOrigin` so the
+                 * clearing cookies land on the same `Domain` the login cookies were set on. A
+                 * cookie is only cleared when those domains match.
+                 */
+                requestHeaders: Readonly<IncomingHttpHeaders>;
             }
         >,
     ): Promise<
@@ -629,7 +633,7 @@ export class BackendAuthClient<
                 ? generateLogoutHeaders(
                       await this.getCookieParams({
                           isSignUpCookie: true,
-                          requestHeaders: undefined,
+                          requestHeaders: params.requestHeaders,
                       }),
                       {
                           preserveCsrf: !clearingAllCookies,
@@ -641,7 +645,7 @@ export class BackendAuthClient<
                 ? generateLogoutHeaders(
                       await this.getCookieParams({
                           isSignUpCookie: false,
-                          requestHeaders: undefined,
+                          requestHeaders: params.requestHeaders,
                       }),
                       {
                           preserveCsrf: !clearingAllCookies,

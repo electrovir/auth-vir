@@ -3,6 +3,7 @@ import {describe, it} from '@augment-vir/test';
 import {
     AuthCookie,
     clearAuthCookie,
+    clearCsrfCookie,
     extractCookieJwt,
     generateAuthCookie,
     resolveCookieName,
@@ -53,6 +54,38 @@ describe(clearAuthCookie.name, () => {
                 isDev: true,
             }),
             'sign-up=redacted; Domain=my origin; HttpOnly; Path=/; SameSite=Strict; MAX-AGE=0',
+        );
+    });
+    /**
+     * Callers pass a whole `CookieParams`, whose `cookieDuration` must not survive into the
+     * clearing cookie: a non-zero `MAX-AGE` keeps the redacted cookie alive instead of deleting
+     * it.
+     */
+    it('expires the cookie even when given a cookie duration', async () => {
+        const {cookieParams} = await getCookieParams();
+
+        assert.strictEquals(
+            clearAuthCookie({
+                ...cookieParams,
+                hostOrigin: 'my origin',
+                isDev: true,
+            }),
+            'auth=redacted; Domain=my origin; HttpOnly; Path=/; SameSite=Strict; MAX-AGE=0',
+        );
+    });
+});
+
+describe(clearCsrfCookie.name, () => {
+    it('expires the cookie even when given a cookie duration', async () => {
+        const {cookieParams} = await getCookieParams();
+
+        assert.strictEquals(
+            clearCsrfCookie({
+                ...cookieParams,
+                hostOrigin: 'my origin',
+                isDev: true,
+            }),
+            'auth-vir-csrf=redacted; Domain=my origin; Path=/; SameSite=Strict; MAX-AGE=0',
         );
     });
 });

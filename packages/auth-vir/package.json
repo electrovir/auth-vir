@@ -1,6 +1,6 @@
 {
     "name": "auth-vir",
-    "version": "5.2.1",
+    "version": "6.0.0",
     "description": "Auth made easy and secure via JWT cookies, CSRF tokens, and password hashing helpers.",
     "keywords": [
         "auth",
@@ -28,7 +28,9 @@
     "main": "src/index.ts",
     "module": "src/index.ts",
     "types": "src/index.ts",
-    "bin": "bin.js",
+    "bin": {
+        "auth-vir": "bin.js"
+    },
     "scripts": {
         "build": "virmator frontend build",
         "compile": "virmator compile",
