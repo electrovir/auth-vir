@@ -52,7 +52,6 @@
         "@node-saml/node-saml": "^5.1.0",
         "object-shape-tester": "^6.15.1",
         "url-vir": "^2.2.2",
-        "xml-crypto": "^6.3.1",
         "@xmldom/xmldom": "^0.9.12"
     },
     "devDependencies": {
@@ -68,7 +67,8 @@
         "markdown-code-example-inserter": "^3.1.0",
         "prisma-vir": "^4.2.2",
         "typedoc": "^0.28.20",
-        "typescript": "^5.9.3"
+        "typescript": "^5.9.3",
+        "xml-crypto": "^6.3.2"
     },
     "engines": {
         "node": ">=22"
