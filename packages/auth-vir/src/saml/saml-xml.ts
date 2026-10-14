@@ -22,7 +22,7 @@ const elementNodeType = 1;
  *
  * @category Internal
  */
-export function parseStrictXml(xml: string): Element {
+export function parseStrictXml(xml: string) {
     if (/<!DOCTYPE/i.test(xml)) {
         throw new Error('XML with a DOCTYPE is not allowed.');
     }
@@ -52,8 +52,8 @@ export function isXmlElement(
 ): node is Element {
     return (
         node?.nodeType === elementNodeType &&
-        (node as Element).namespaceURI === namespace &&
-        (node as Element).localName === localName
+        (node satisfies Readonly<Node> as Element).namespaceURI === namespace &&
+        (node satisfies Readonly<Node> as Element).localName === localName
     );
 }
 
@@ -66,7 +66,7 @@ export function getChildElements(
     parent: Readonly<Element>,
     namespace: SamlNamespace,
     localName: string,
-): Element[] {
+) {
     return Array.from(parent.childNodes).filter((child): child is Element => {
         return isXmlElement(child, namespace, localName);
     });
@@ -83,7 +83,7 @@ export function getOnlyChildElement(
     parent: Readonly<Element>,
     namespace: SamlNamespace,
     localName: string,
-): Element | undefined {
+) {
     const children = getChildElements(parent, namespace, localName);
 
     if (children.length > 1) {
@@ -101,7 +101,7 @@ export function getOnlyChildElement(
  *
  * @category Internal
  */
-export function getElementText(element: Readonly<Element>): string {
+export function getElementText(element: Readonly<Element>) {
     return (element.textContent || '').trim();
 }
 
@@ -110,6 +110,6 @@ export function getElementText(element: Readonly<Element>): string {
  *
  * @category Internal
  */
-export function getAttribute(element: Readonly<Element>, name: string): string | undefined {
+export function getAttribute(element: Readonly<Element>, name: string) {
     return element.getAttribute(name) || undefined;
 }

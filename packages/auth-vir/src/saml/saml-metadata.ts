@@ -2,6 +2,7 @@
 import {removeDuplicates, type PartialWithUndefined} from '@augment-vir/common';
 import {generateServiceProviderMetadata} from '@node-saml/node-saml';
 import {type Element} from '@xmldom/xmldom';
+import {X509Certificate} from 'node:crypto';
 import {
     getAttribute,
     getChildElements,
@@ -30,12 +31,33 @@ export type ParsedIdpMetadata = {
 };
 
 /**
+ * NameID formats defined in SAML core 8.3.
+ *
+ * @category Internal
+ */
+export enum SamlNameIdFormat {
+    Unspecified = 'urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified',
+    EmailAddress = 'urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress',
+    X509SubjectName = 'urn:oasis:names:tc:SAML:1.1:nameid-format:X509SubjectName',
+    WindowsDomainQualifiedName = 'urn:oasis:names:tc:SAML:1.1:nameid-format:WindowsDomainQualifiedName',
+    Kerberos = 'urn:oasis:names:tc:SAML:2.0:nameid-format:kerberos',
+    Entity = 'urn:oasis:names:tc:SAML:2.0:nameid-format:entity',
+    Persistent = 'urn:oasis:names:tc:SAML:2.0:nameid-format:persistent',
+    Transient = 'urn:oasis:names:tc:SAML:2.0:nameid-format:transient',
+}
+
+enum SamlBinding {
+    HttpRedirect = 'urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect',
+    HttpPost = 'urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST',
+}
+
+/**
  * The SAML bindings `ssoUrl` can come from, most preferred first. HTTP-Redirect is a plain link the
  * app can send users to for SP-initiated sign-in; HTTP-POST needs an auto-submitting form instead.
  */
 const ssoBindingPreference = [
-    'urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect',
-    'urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST',
+    SamlBinding.HttpRedirect,
+    SamlBinding.HttpPost,
 ];
 
 /**
@@ -81,7 +103,7 @@ export function parseIdpMetadata(metadataXml: string): ParsedIdpMetadata {
     };
 }
 
-function readSsoUrl(idpDescriptor: Readonly<Element>): string {
+function readSsoUrl(idpDescriptor: Readonly<Element>) {
     const services = getChildElements(idpDescriptor, SamlNamespace.Metadata, 'SingleSignOnService');
 
     for (const binding of ssoBindingPreference) {
@@ -101,7 +123,7 @@ function readSsoUrl(idpDescriptor: Readonly<Element>): string {
     throw new Error('Metadata has no HTTP-Redirect or HTTP-POST SingleSignOnService.');
 }
 
-function readSigningCertificates(idpDescriptor: Readonly<Element>): string[] {
+function readSigningCertificates(idpDescriptor: Readonly<Element>) {
     const certificates = getChildElements(idpDescriptor, SamlNamespace.Metadata, 'KeyDescriptor')
         /** A KeyDescriptor without a `use` is usable for both signing and encryption. */
         .filter((keyDescriptor) => (getAttribute(keyDescriptor, 'use') ?? 'signing') === 'signing')
@@ -115,20 +137,29 @@ function readSigningCertificates(idpDescriptor: Readonly<Element>): string[] {
     return removeDuplicates(certificates);
 }
 
-function toPemCertificate(base64Certificate: string): string {
+function toPemCertificate(base64Certificate: string) {
     const base64 = base64Certificate.replaceAll(/\s/g, '');
 
     if (!base64 || !/^[A-Za-z0-9+/]+={0,2}$/.test(base64)) {
         throw new Error('Metadata contains an X509Certificate that is not valid base64.');
     }
 
-    const lines = base64.match(/.{1,64}/g) || [];
-
-    return [
+    const pem = [
         '-----BEGIN CERTIFICATE-----',
-        ...lines,
+        ...(base64.match(/.{1,64}/g) || []),
         '-----END CERTIFICATE-----',
     ].join('\n');
+
+    try {
+        return new X509Certificate(pem).toString().trimEnd();
+    } catch (error) {
+        throw new Error(
+            'Metadata contains an X509Certificate that is not a valid X.509 certificate.',
+            {
+                cause: error,
+            },
+        );
+    }
 }
 
 /**
@@ -147,9 +178,9 @@ export type GenerateSpMetadataParams = Readonly<{
             /**
              * The NameID format to request from the IdP.
              *
-             * @default 'urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress'
+             * @default SamlNameIdFormat.EmailAddress
              */
-            nameIdFormat: string;
+            nameIdFormat: SamlNameIdFormat;
         }>
     >;
 
@@ -159,12 +190,11 @@ export type GenerateSpMetadataParams = Readonly<{
  *
  * @category SAML
  */
-export function generateSpMetadata(params: GenerateSpMetadataParams): string {
+export function generateSpMetadata({entityId, acsUrl, nameIdFormat}: GenerateSpMetadataParams) {
     return generateServiceProviderMetadata({
-        issuer: params.entityId,
-        callbackUrl: params.acsUrl,
+        issuer: entityId,
+        callbackUrl: acsUrl,
         wantAssertionsSigned: true,
-        identifierFormat:
-            params.nameIdFormat || 'urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress',
+        identifierFormat: nameIdFormat || SamlNameIdFormat.EmailAddress,
     });
 }

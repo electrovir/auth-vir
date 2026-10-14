@@ -2,17 +2,17 @@ import {type FullDate, type UtcTimezone} from 'date-vir';
 import {verifySamlResponse} from '../saml/index.js';
 
 /** Stand-in for a database table with a unique assertion ID column. */
-const usedAssertions: Record<string, FullDate<UtcTimezone>> = {};
+const usedAssertions = new Map<string, FullDate<UtcTimezone>>();
 
 function insertAssertionIdIfNew({
     assertionId,
     expiresAt,
 }: Readonly<{assertionId: string; expiresAt: FullDate<UtcTimezone>}>): boolean {
     /** Rows can be deleted once `expiresAt` has passed. */
-    if (assertionId in usedAssertions) {
+    if (usedAssertions.has(assertionId)) {
         return false;
     } else {
-        usedAssertions[assertionId] = expiresAt;
+        usedAssertions.set(assertionId, expiresAt);
         return true;
     }
 }

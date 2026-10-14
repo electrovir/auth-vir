@@ -1,8 +1,8 @@
-// cspell:words adfs idpsso nameid spsso
+// cspell:words adfs idpsso nameid qujdra spsso
 import {assert, assertWrap} from '@augment-vir/assert';
 import {describe, it} from '@augment-vir/test';
 import {DOMParser, MIME_TYPE} from '@xmldom/xmldom';
-import {generateSpMetadata, parseIdpMetadata} from './saml-metadata.js';
+import {generateSpMetadata, parseIdpMetadata, SamlNameIdFormat} from './saml-metadata.js';
 import {createMockReplayStore, createMockSamlResponse, mockIdpKeys, mockSaml} from './saml.mock.js';
 import {verifySamlResponse} from './verify-saml-response.js';
 
@@ -184,6 +184,18 @@ describe(parseIdpMetadata.name, () => {
                 matchMessage: 'base64',
             },
         );
+        assert.throws(
+            () => {
+                return parseIdpMetadata(
+                    createAdfsMetadata({
+                        keyDescriptors: keyDescriptor('signing', 'QUJDRA=='),
+                    }),
+                );
+            },
+            {
+                matchMessage: 'not a valid X.509 certificate',
+            },
+        );
     });
 });
 
@@ -196,11 +208,11 @@ describe(generateSpMetadata.name, () => {
         const root = assertWrap.isDefined(
             new DOMParser().parseFromString(xml, MIME_TYPE.XML_TEXT).documentElement,
         );
-        const getOnlyElement = (localName: string) => {
+        function getOnlyElement(localName: string) {
             return assertWrap.isDefined(
                 root.getElementsByTagNameNS(metadataNamespace, localName)[0],
             );
-        };
+        }
         const spDescriptor = getOnlyElement('SPSSODescriptor');
         const acs = getOnlyElement('AssertionConsumerService');
         const nameIdFormat = getOnlyElement('NameIDFormat');
@@ -224,10 +236,10 @@ describe(generateSpMetadata.name, () => {
         const xml = generateSpMetadata({
             entityId: mockSaml.spEntityId,
             acsUrl: mockSaml.acsUrl,
-            nameIdFormat: 'urn:oasis:names:tc:SAML:2.0:nameid-format:persistent',
+            nameIdFormat: SamlNameIdFormat.Persistent,
         });
 
-        assert.isTrue(xml.includes('urn:oasis:names:tc:SAML:2.0:nameid-format:persistent'));
+        assert.isTrue(xml.includes(SamlNameIdFormat.Persistent));
     });
 
     it('is not accepted by parseIdpMetadata', () => {

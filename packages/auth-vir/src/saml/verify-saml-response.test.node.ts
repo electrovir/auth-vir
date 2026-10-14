@@ -6,6 +6,7 @@ import {
     DOMParser,
     type Element,
     MIME_TYPE,
+    type Node,
     type Document as XmlDocument,
     XMLSerializer,
 } from '@xmldom/xmldom';
@@ -16,10 +17,13 @@ import {
     createMockSamlResponseXml,
     encodeSamlResponse,
     fromNow,
+    MockHashAlgorithm,
     mockIdpKeys,
     mockSaml,
+    MockSignedElements,
 } from './saml.mock.js';
 import {
+    defaultMaxSamlResponseLength,
     defaultSamlClockSkew,
     SamlVerifyError,
     SamlVerifyFailureReason,
@@ -121,7 +125,7 @@ describe(verifySamlResponse.name, () => {
     it('accepts a response where both the response and assertion are signed', async () => {
         const result = await verify(
             createMockSamlResponse({
-                signedElements: 'both',
+                signedElements: MockSignedElements.Both,
             }),
         );
 
@@ -226,7 +230,7 @@ describe(verifySamlResponse.name, () => {
                     namespace: assertionNamespace,
                     localName: 'Assertion',
                 });
-                const evilAssertion = signedAssertion.cloneNode(true) as Element;
+                const evilAssertion = signedAssertion.cloneNode(true) satisfies Node as Element;
                 evilAssertion.setAttribute('ID', '_evil');
                 replaceNameId(evilAssertion, 'ceo@example.com');
 
@@ -247,7 +251,7 @@ describe(verifySamlResponse.name, () => {
                     namespace: assertionNamespace,
                     localName: 'Assertion',
                 });
-                const evilAssertion = signedAssertion.cloneNode(true) as Element;
+                const evilAssertion = signedAssertion.cloneNode(true) satisfies Node as Element;
                 evilAssertion.setAttribute('ID', '_evil');
                 replaceNameId(evilAssertion, 'ceo@example.com');
                 evilAssertion.removeChild(
@@ -271,7 +275,7 @@ describe(verifySamlResponse.name, () => {
                     namespace: assertionNamespace,
                     localName: 'Assertion',
                 });
-                const evilAssertion = signedAssertion.cloneNode(true) as Element;
+                const evilAssertion = signedAssertion.cloneNode(true) satisfies Node as Element;
                 replaceNameId(evilAssertion, 'ceo@example.com');
 
                 /** Move the original assertion into the (unsigned) Response Extensions. */
@@ -328,7 +332,7 @@ describe(verifySamlResponse.name, () => {
         it('rejects a response where only the outer Response is signed', async () => {
             await assertRejected(
                 createMockSamlResponse({
-                    signedElements: 'response',
+                    signedElements: MockSignedElements.Response,
                 }),
                 SamlVerifyFailureReason.InvalidSignature,
             );
@@ -337,7 +341,7 @@ describe(verifySamlResponse.name, () => {
         it('rejects an unsigned response', async () => {
             await assertRejected(
                 createMockSamlResponse({
-                    signedElements: 'none',
+                    signedElements: MockSignedElements.None,
                 }),
                 SamlVerifyFailureReason.InvalidSignature,
             );
@@ -346,7 +350,7 @@ describe(verifySamlResponse.name, () => {
         it('rejects a SHA-1 signature', async () => {
             const result = await verify(
                 createMockSamlResponse({
-                    hashAlgorithm: 'sha1',
+                    hashAlgorithm: MockHashAlgorithm.Sha1,
                 }),
             );
 
@@ -358,7 +362,7 @@ describe(verifySamlResponse.name, () => {
         it('rejects a SHA-1 signature whose algorithm is written as a character reference', async () => {
             /** Canonicalization expands the reference, so the signature itself still verifies. */
             const xml = createMockSamlResponseXml({
-                hashAlgorithm: 'sha1',
+                hashAlgorithm: MockHashAlgorithm.Sha1,
             }).replace('xmldsig#rsa-sha1', 'xmldsig&#x23;rsa-sha1');
             assert.isTrue(xml.includes('xmldsig&#x23;rsa-sha1'));
 
@@ -494,6 +498,15 @@ describe(verifySamlResponse.name, () => {
             assert.isFalse(result.success);
             assert.strictEquals(result.reason, SamlVerifyFailureReason.Malformed);
             assert.isTrue(result.detail.includes('Expected a UTC time'), result.detail);
+        });
+
+        it('rejects a time that does not exist', async () => {
+            await assertRejected(
+                createMockSamlResponse({
+                    conditionsNotOnOrAfterText: '2099-02-30T00:00:00Z',
+                }),
+                SamlVerifyFailureReason.Malformed,
+            );
         });
 
         it('rejects a response that is not yet valid', async () => {
@@ -680,6 +693,28 @@ describe(verifySamlResponse.name, () => {
                 {
                     matchMessage: 'SAML clock skew cannot be negative.',
                 },
+            );
+            await assert.throws(
+                () => {
+                    return verify(createMockSamlResponse(), {
+                        maxResponseLength: 0,
+                    });
+                },
+                {
+                    matchMessage: 'SAML max response length must be a positive number.',
+                },
+            );
+        });
+
+        it('rejects a response over the max length before parsing it', async () => {
+            const samlResponse = createMockSamlResponse();
+
+            await assertRejected(samlResponse, SamlVerifyFailureReason.TooLarge, {
+                maxResponseLength: samlResponse.length - 1,
+            });
+            await assertRejected(
+                'a'.repeat(defaultMaxSamlResponseLength + 1),
+                SamlVerifyFailureReason.TooLarge,
             );
         });
 

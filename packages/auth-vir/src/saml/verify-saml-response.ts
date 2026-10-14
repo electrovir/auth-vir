@@ -3,7 +3,7 @@ import {
     extractErrorMessage,
     type MaybePromise,
     type PartialWithUndefined,
-    wrapInTry,
+    typedObjectFromEntries,
 } from '@augment-vir/common';
 import {SAML, SamlStatusError, ValidateInResponseTo} from '@node-saml/node-saml';
 import {type Element} from '@xmldom/xmldom';
@@ -84,6 +84,15 @@ export const maxSamlClockSkew: Readonly<AnyDuration> = {
 };
 
 /**
+ * Default for the longest `SAMLResponse` that {@link verifySamlResponse} will parse, in base64
+ * characters. Responses carrying many group attributes can be large, so this leaves plenty of
+ * room.
+ *
+ * @category Internal
+ */
+export const defaultMaxSamlResponseLength = 512 * 1024;
+
+/**
  * Params for {@link verifySamlResponse}.
  *
  * @category Internal
@@ -110,6 +119,13 @@ export type VerifySamlResponseParams = Readonly<{
              * @default defaultSamlClockSkew
              */
             clockSkew: Readonly<AnyDuration>;
+            /**
+             * The longest `samlResponse`, in base64 characters, that will be parsed. Longer
+             * responses are rejected before any XML parsing.
+             *
+             * @default defaultMaxSamlResponseLength
+             */
+            maxResponseLength: number;
         }>
     >;
 
@@ -161,6 +177,8 @@ export enum SamlVerifyFailureReason {
     NotYetValid = 'not-yet-valid',
     /** The replay store reported that this assertion ID was already used. */
     Replayed = 'replayed',
+    /** The `SAMLResponse` is longer than the allowed max length. */
+    TooLarge = 'too-large',
 }
 
 /**
@@ -222,6 +240,7 @@ export async function verifySamlResponse(
     const requestedClockSkewMs = convertDuration(params.clockSkew || defaultSamlClockSkew, {
         milliseconds: true,
     }).milliseconds;
+    const maxResponseLength = params.maxResponseLength ?? defaultMaxSamlResponseLength;
 
     if (!params.idp.signingCertificates.length) {
         throw new SamlVerifyError(
@@ -245,6 +264,11 @@ export async function verifySamlResponse(
             SamlVerifyFailureReason.InvalidParams,
             'SAML clock skew cannot be negative.',
         );
+    } else if (Number.isNaN(maxResponseLength) || maxResponseLength <= 0) {
+        throw new SamlVerifyError(
+            SamlVerifyFailureReason.InvalidParams,
+            'SAML max response length must be a positive number.',
+        );
     }
 
     const clockSkewMs = Math.min(
@@ -255,6 +279,13 @@ export async function verifySamlResponse(
     );
 
     try {
+        if (params.samlResponse.length > maxResponseLength) {
+            throw new SamlVerifyError(
+                SamlVerifyFailureReason.TooLarge,
+                `SAMLResponse is ${params.samlResponse.length} characters, which is over the max of ${maxResponseLength}.`,
+            );
+        }
+
         const assertionXml = await getSignedAssertionXml(params);
         const profile = readVerifiedAssertion({
             assertionXml,
@@ -295,24 +326,14 @@ export async function verifySamlResponse(
  * Uses node-saml to check the signature and return only the XML that the signature covers. All
  * other checks happen in {@link readVerifiedAssertion} so that they read only signed content.
  */
-async function getSignedAssertionXml(params: VerifySamlResponseParams): Promise<string> {
+async function getSignedAssertionXml({
+    idp,
+    spEntityId,
+    acsUrl,
+    samlResponse,
+}: VerifySamlResponseParams) {
     /** Applies the strict parse (no DOCTYPE) to the whole message, not just the signed assertion. */
-    const response = wrapInTry(
-        () => {
-            return parseStrictXml(Buffer.from(params.samlResponse, 'base64').toString('utf8'));
-        },
-        {
-            handleError: (error) => {
-                throw new SamlVerifyError(
-                    SamlVerifyFailureReason.Malformed,
-                    extractErrorMessage(error),
-                    {
-                        cause: error,
-                    },
-                );
-            },
-        },
-    );
+    const response = parseSamlXml(Buffer.from(samlResponse, 'base64').toString('utf8'));
     /**
      * Node-saml has no algorithm allow-list. Parsed attribute values are checked because a
      * character reference (`xmldsig&#x23;rsa-sha1`) hides the algorithm from a text match but not
@@ -329,9 +350,9 @@ async function getSignedAssertionXml(params: VerifySamlResponseParams): Promise<
     }
 
     const saml = new SAML({
-        idpCert: [...params.idp.signingCertificates],
-        issuer: params.spEntityId,
-        callbackUrl: params.acsUrl,
+        idpCert: [...idp.signingCertificates],
+        issuer: spEntityId,
+        callbackUrl: acsUrl,
         wantAssertionsSigned: true,
         wantAuthnResponseSigned: false,
         validateInResponseTo: ValidateInResponseTo.never,
@@ -342,7 +363,7 @@ async function getSignedAssertionXml(params: VerifySamlResponseParams): Promise<
 
     try {
         const {profile} = await saml.validatePostResponseAsync({
-            SAMLResponse: params.samlResponse,
+            SAMLResponse: samlResponse,
         });
 
         const assertionXml = profile?.getAssertionXml?.();
@@ -386,18 +407,8 @@ function readVerifiedAssertion({
     params: VerifySamlResponseParams;
     clockSkewMs: number;
     nowMs: number;
-}>): VerifiedSamlProfile {
-    const assertion = wrapInTry(() => parseStrictXml(assertionXml), {
-        handleError: (error) => {
-            throw new SamlVerifyError(
-                SamlVerifyFailureReason.Malformed,
-                extractErrorMessage(error),
-                {
-                    cause: error,
-                },
-            );
-        },
-    });
+}>) {
+    const assertion = parseSamlXml(assertionXml);
     if (!isXmlElement(assertion, SamlNamespace.Assertion, 'Assertion')) {
         throw new SamlVerifyError(
             SamlVerifyFailureReason.Malformed,
@@ -455,12 +466,19 @@ function readVerifiedAssertion({
     };
 }
 
+/** Wraps {@link parseStrictXml} so that parse errors become a typed failure. */
+function parseSamlXml(xml: string) {
+    try {
+        return parseStrictXml(xml);
+    } catch (error) {
+        throw new SamlVerifyError(SamlVerifyFailureReason.Malformed, extractErrorMessage(error), {
+            cause: error,
+        });
+    }
+}
+
 /** Wraps {@link getOnlyChildElement} so that duplicate elements become a typed failure. */
-function getChild(
-    parent: Readonly<Element>,
-    namespace: SamlNamespace,
-    localName: string,
-): Element | undefined {
+function getChild(parent: Readonly<Element>, namespace: SamlNamespace, localName: string) {
     try {
         return getOnlyChildElement(parent, namespace, localName);
     } catch (error) {
@@ -470,11 +488,7 @@ function getChild(
     }
 }
 
-function requireChild(
-    parent: Readonly<Element>,
-    namespace: SamlNamespace,
-    localName: string,
-): Element {
+function requireChild(parent: Readonly<Element>, namespace: SamlNamespace, localName: string) {
     const child = getChild(parent, namespace, localName);
     if (!child) {
         throw new SamlVerifyError(
@@ -489,31 +503,48 @@ function requireChild(
  * SAML times are UTC `xs:dateTime` strings (SAML core 1.3.3), such as `2026-09-30T16:04:05Z`, with
  * optional fractional seconds. A time with no `Z` would be read in the server's local timezone.
  */
-const samlTimeRegExp = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z$/;
+const samlTimeRegExp =
+    /^(?<year>\d{4})-(?<month>\d{2})-(?<day>\d{2})T(?<hour>\d{2}):(?<minute>\d{2}):(?<second>\d{2})(\.\d+)?Z$/;
 
-function parseSamlTime(element: Readonly<Element>, attributeName: string): number | undefined {
+function parseSamlTime(element: Readonly<Element>, attributeName: string) {
     const value = getAttribute(element, attributeName);
     if (value == undefined) {
         return undefined;
     }
 
     const invalidTimeMessage = `Invalid ${attributeName} time: '${value}'. Expected a UTC time like '2026-09-30T16:04:05Z'.`;
-    if (!samlTimeRegExp.test(value)) {
+    const timeParts = samlTimeRegExp.exec(value)?.groups;
+    if (!timeParts) {
         throw new SamlVerifyError(SamlVerifyFailureReason.Malformed, invalidTimeMessage);
     }
 
-    return wrapInTry(
-        () => {
-            return toTimestamp(createUtcFullDate(value));
-        },
-        {
-            handleError: (error) => {
-                throw new SamlVerifyError(SamlVerifyFailureReason.Malformed, invalidTimeMessage, {
-                    cause: error,
-                });
-            },
-        },
-    );
+    try {
+        const fullDate = createUtcFullDate(value);
+        /**
+         * Date-vir rolls an impossible time such as `2026-02-30T16:04:05Z` over instead of
+         * throwing.
+         */
+        const isRealTime = (
+            [
+                'year',
+                'month',
+                'day',
+                'hour',
+                'minute',
+                'second',
+            ] as const
+        ).every((unit) => fullDate[unit] === Number(timeParts[unit]));
+
+        if (isRealTime) {
+            return toTimestamp(fullDate);
+        }
+    } catch (error) {
+        throw new SamlVerifyError(SamlVerifyFailureReason.Malformed, invalidTimeMessage, {
+            cause: error,
+        });
+    }
+
+    throw new SamlVerifyError(SamlVerifyFailureReason.Malformed, invalidTimeMessage);
 }
 
 /**
@@ -529,7 +560,7 @@ function checkTimeWindow({
     element: Readonly<Element>;
     nowMs: number;
     clockSkewMs: number;
-}>): number | undefined {
+}>) {
     const notBeforeMs = parseSamlTime(element, 'NotBefore');
     const notOnOrAfterMs = parseSamlTime(element, 'NotOnOrAfter');
 
@@ -593,7 +624,7 @@ function checkBearerConfirmation({
     acsUrl: string;
     nowMs: number;
     clockSkewMs: number;
-}>): number {
+}>) {
     const bearerConfirmations = getChildElements(
         subject,
         SamlNamespace.Assertion,
@@ -646,7 +677,7 @@ function checkSubjectConfirmationData({
     acsUrl: string;
     nowMs: number;
     clockSkewMs: number;
-}>): number {
+}>) {
     const data = requireChild(confirmation, SamlNamespace.Assertion, 'SubjectConfirmationData');
 
     const recipient = getAttribute(data, 'Recipient');
@@ -672,7 +703,7 @@ function checkSubjectConfirmationData({
     return notOnOrAfterMs;
 }
 
-function readAttributes(assertion: Readonly<Element>): Record<string, string[]> {
+function readAttributes(assertion: Readonly<Element>) {
     /** A Map avoids treating attribute names such as `__proto__` as object keys. */
     const attributes = new Map<string, string[]>();
 
@@ -703,5 +734,5 @@ function readAttributes(assertion: Readonly<Element>): Record<string, string[]> 
         },
     );
 
-    return Object.fromEntries(attributes);
+    return typedObjectFromEntries([...attributes]);
 }
