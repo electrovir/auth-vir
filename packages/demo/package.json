@@ -1,6 +1,6 @@
 {
     "name": "@evir/demo",
-    "version": "6.1.0",
+    "version": "6.2.0",
     "private": true,
     "license": "(MIT OR CC0-1.0)",
     "type": "module",
@@ -10,19 +10,19 @@
         "test": "exit 0"
     },
     "dependencies": {
-        "@augment-vir/assert": "^32.5.0",
-        "@augment-vir/common": "^32.5.0",
-        "@rest-vir/api": "^2.3.5",
-        "@rest-vir/host": "^2.3.5",
-        "auth-vir": "^6.1.0",
+        "@augment-vir/assert": "^32.6.1",
+        "@augment-vir/common": "^32.6.1",
+        "@rest-vir/api": "^2.4.1",
+        "@rest-vir/host": "^2.4.1",
+        "auth-vir": "^6.2.0",
         "element-vir": "^27.0.2",
-        "object-shape-tester": "^6.15.1",
-        "vira": "^33.4.1"
+        "object-shape-tester": "^6.15.2",
+        "vira": "^33.9.0"
     },
     "devDependencies": {
         "runstorm": "^1.1.0",
         "typescript": "^5.9.3",
-        "vite": "^8.3.4"
+        "vite": "^8.3.5"
     },
     "engines": {
         "node": ">=22"
