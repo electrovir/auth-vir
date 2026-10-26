@@ -196,6 +196,79 @@ describe(BackendAuthClient.name, () => {
             await adapter.pgliteClient.close();
         }
     });
+    it('attaches extra cookies on login, secure user, and logout', async (testContext) => {
+        const {backendAuthClient, mockUser, prismaClient, adapter} =
+            await setupBackendAuthClientTest({
+                testContext,
+                authClientConfigOverrides: {
+                    createExtraCookies({session, isSignUpCookie}) {
+                        if (isSignUpCookie) {
+                            return undefined;
+                        }
+                        return session ? `extra=${session.user.name}` : 'extra=; Max-Age=0';
+                    },
+                },
+            });
+
+        try {
+            assert.isDefined(mockUser, 'Failed to find mock user.');
+
+            const loginHeaders = await backendAuthClient.createLoginHeaders({
+                isSignUpCookie: false,
+                requestHeaders: {},
+                userId: mockUser.id,
+            });
+
+            const userResult = await backendAuthClient.getSecureUser({
+                requestHeaders: {
+                    [testCsrfHeaderName]: extractCsrfTokenFromSetCookies(loginHeaders),
+                    cookie: setCookieHeaderToRegularCookieHeader(loginHeaders),
+                },
+                isSignUpCookie: false,
+                allowUserAuthRefresh: false,
+            });
+            assert.isDefined(userResult, 'No user result');
+
+            const signUpLoginHeaders = await backendAuthClient.createLoginHeaders({
+                isSignUpCookie: true,
+                requestHeaders: {},
+                userId: mockUser.id,
+            });
+
+            const logoutHeaders = await backendAuthClient.createLogoutHeaders({
+                allCookies: true,
+                requestHeaders: {},
+            });
+
+            assert.deepEquals(
+                [
+                    loginHeaders,
+                    userResult.responseHeaders,
+                    signUpLoginHeaders,
+                    logoutHeaders,
+                ].map((headers) => {
+                    return ensureArray(headers['set-cookie'] || []).filter((cookie) => {
+                        return cookie.startsWith('extra=');
+                    });
+                }),
+                [
+                    [
+                        'extra=fake user 1',
+                    ],
+                    [
+                        'extra=fake user 1',
+                    ],
+                    [],
+                    [
+                        'extra=; Max-Age=0',
+                    ],
+                ],
+            );
+        } finally {
+            await prismaClient.$disconnect();
+            await adapter.pgliteClient.close();
+        }
+    });
     it('gets an insecure user', async (testContext) => {
         const {backendAuthClient, mockUser, prismaClient, adapter} =
             await setupBackendAuthClientTest({

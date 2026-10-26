@@ -195,6 +195,33 @@ export type BackendAuthClientConfig<
          * running multiple environments on the same domain without cookie collisions.
          */
         cookieNameSuffix: string;
+        /**
+         * Attach your own cookies to auth-vir's `set-cookie` headers so they share the auth
+         * session's lifetime. Called whenever `getSecureUser` finds a user and whenever
+         * `createLoginHeaders` runs (both with `session` set), and from `createLogoutHeaders` (with
+         * `session` set to `undefined`, meaning the returned cookies should clear yours). Not
+         * called from `getInsecureUser`.
+         */
+        createExtraCookies(params: {
+            requestHeaders: Readonly<IncomingHttpHeaders>;
+            /** The params auth-vir is using for its own auth cookie in this response. */
+            cookieParams: Readonly<CookieParams>;
+            /**
+             * On logout, this is `true` only when the sign-up cookie alone is being cleared.
+             * Otherwise it matches the session's own cookie.
+             */
+            isSignUpCookie: boolean;
+            /**
+             * `undefined` on logout, and on login when `getUserFromDatabase` finds no user for the
+             * logged-in user id.
+             */
+            session:
+                | {
+                      user: DatabaseUser;
+                      isAssumed: boolean;
+                  }
+                | undefined;
+        }): MaybePromise<string | string[] | undefined>;
     }>
 >;
 
@@ -288,6 +315,31 @@ export class BackendAuthClient<
             authCookie: isSignUpCookie ? AuthCookie.SignUp : AuthCookie.Auth,
             cookieNameSuffix: this.config.cookieNameSuffix,
         };
+    }
+
+    /** Calls the provided `createExtraCookies` config, if any. */
+    protected async createExtraCookies({
+        requestHeaders,
+        isSignUpCookie,
+        session,
+    }: {
+        requestHeaders: Readonly<IncomingHttpHeaders>;
+        isSignUpCookie: boolean;
+        session: {user: DatabaseUser; isAssumed: boolean} | undefined;
+    }): Promise<string | string[] | undefined> {
+        if (!this.config.createExtraCookies) {
+            return undefined;
+        }
+
+        return await this.config.createExtraCookies({
+            requestHeaders,
+            cookieParams: await this.getCookieParams({
+                isSignUpCookie,
+                requestHeaders,
+            }),
+            isSignUpCookie,
+            session,
+        });
     }
 
     /** Calls the provided `getUserFromDatabase` config. */
@@ -571,11 +623,23 @@ export class BackendAuthClient<
             cookieNameSuffix: this.config.cookieNameSuffix,
         });
 
-        return {
+        const session = {
             user: assumedUser || user,
             isAssumed: !!assumedUser,
+        };
+
+        return {
+            ...session,
             responseHeaders: {
-                'set-cookie': mergeHeaderValues(cookieRefreshHeaders?.['set-cookie'], csrfCookie),
+                'set-cookie': mergeHeaderValues(
+                    cookieRefreshHeaders?.['set-cookie'],
+                    csrfCookie,
+                    await this.createExtraCookies({
+                        requestHeaders,
+                        isSignUpCookie,
+                        session,
+                    }),
+                ),
             },
         };
     }
@@ -671,6 +735,11 @@ export class BackendAuthClient<
                 signUpCookieHeaders?.['set-cookie'],
                 authCookieHeaders?.['set-cookie'],
                 broadCsrfClearCookie,
+                await this.createExtraCookies({
+                    requestHeaders: params.requestHeaders,
+                    isSignUpCookie: !authCookieHeaders,
+                    session: undefined,
+                }),
             ),
         };
     }
@@ -793,11 +862,30 @@ export class BackendAuthClient<
               })
             : await this.generateFreshLoginHeaders(userId, cookieParams);
 
+        const user = this.config.createExtraCookies
+            ? await this.getDatabaseUser({
+                  userId,
+                  assumingUser: undefined,
+                  isSignUpCookie,
+                  requestHeaders,
+              })
+            : undefined;
+
         return {
             ...newCookieHeaders,
             'set-cookie': mergeHeaderValues(
                 newCookieHeaders['set-cookie'],
                 discardOppositeCookieHeaders?.['set-cookie'],
+                await this.createExtraCookies({
+                    requestHeaders,
+                    isSignUpCookie,
+                    session: user
+                        ? {
+                              user,
+                              isAssumed: false,
+                          }
+                        : undefined,
+                }),
             ),
             ...(isSignUpCookie
                 ? {
