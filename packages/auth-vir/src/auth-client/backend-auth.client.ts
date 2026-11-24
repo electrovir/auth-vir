@@ -13,6 +13,7 @@ import {
     createUtcFullDate,
     getNowInUtcTimezone,
     isDateAfter,
+    toTimestamp,
     type AnyDuration,
 } from 'date-vir';
 import {type IncomingHttpHeaders, type OutgoingHttpHeaders} from 'node:http';
@@ -41,7 +42,10 @@ import {isSessionRefreshReady} from './is-session-refresh-ready.js';
  *
  * @category Internal
  */
-export type GetUserResult<DatabaseUser extends AnyObject> = {
+export type GetUserResult<
+    DatabaseUser extends AnyObject,
+    UserId extends string | number = string | number,
+> = {
     /** The retrieved user. */
     user: DatabaseUser;
     /**
@@ -49,6 +53,19 @@ export type GetUserResult<DatabaseUser extends AnyObject> = {
      * `true` if you've configured user assuming in `BackendAuthClient`.
      */
     isAssumed: boolean;
+    /**
+     * The session read from the request's verified auth cookie, such as for revoking sessions that
+     * started before a password change.
+     */
+    cookieSession: {
+        /** When `isAssumed` is `true`, this is the id of the user doing the assuming, not `user`. */
+        userId: UserId;
+        /**
+         * Unix timestamp (in milliseconds) when the session started. Falls back to the JWT's issue
+         * time for cookies that predate session start tracking.
+         */
+        sessionStartedAt: number;
+    };
     /**
      * This should be merged into your own response headers. It usually contains auth cookie
      * duration refresh headers.
@@ -467,7 +484,8 @@ export class BackendAuthClient<
                 {
                     csrfToken: userIdResult.csrfToken,
                     userId: userIdResult.userId,
-                    sessionStartedAt: userIdResult.sessionStartedAt || Date.now(),
+                    sessionStartedAt:
+                        userIdResult.sessionStartedAt ?? toTimestamp(userIdResult.jwtIssuedAt),
                 },
                 cookieParams,
             );
@@ -551,7 +569,7 @@ export class BackendAuthClient<
          * with the frontend auth client's `checkUser.performCheck` callback.
          */
         allowUserAuthRefresh: boolean;
-    }): Promise<GetUserResult<DatabaseUser> | undefined> {
+    }): Promise<GetUserResult<DatabaseUser, UserId> | undefined> {
         const userIdResult = await extractUserIdFromRequestHeaders<UserId>({
             headers: requestHeaders,
             jwtParams: await this.getJwtParams(),
@@ -630,6 +648,11 @@ export class BackendAuthClient<
 
         return {
             ...session,
+            cookieSession: {
+                userId: userIdResult.userId,
+                sessionStartedAt:
+                    userIdResult.sessionStartedAt ?? toTimestamp(userIdResult.jwtIssuedAt),
+            },
             responseHeaders: {
                 'set-cookie': mergeHeaderValues(
                     cookieRefreshHeaders?.['set-cookie'],
@@ -815,11 +838,19 @@ export class BackendAuthClient<
         userId,
         requestHeaders,
         isSignUpCookie,
+        startNewSession,
     }: {
         userId: UserId;
         requestHeaders: IncomingHttpHeaders;
         isSignUpCookie: boolean;
-    }): Promise<OutgoingHttpHeaders> {
+    } & PartialWithUndefined<{
+        /**
+         * By default, a request that still carries a valid auth cookie keeps that cookie's CSRF
+         * token and session start time. Set this to always start a new session instead, such as
+         * after revoking every session that started before a password change.
+         */
+        startNewSession: boolean;
+    }>): Promise<OutgoingHttpHeaders> {
         const oppositeCookieName = isSignUpCookie ? AuthCookie.Auth : AuthCookie.SignUp;
         const resolvedOppositeCookieName = resolveCookieName(
             oppositeCookieName,
@@ -841,13 +872,15 @@ export class BackendAuthClient<
               )
             : undefined;
 
-        const existingUserIdResult = await extractUserIdFromRequestHeaders<UserId>({
-            headers: requestHeaders,
-            jwtParams: await this.getJwtParams(),
-            csrfHeaderNameOption: this.config.csrf,
-            cookieName: isSignUpCookie ? AuthCookie.SignUp : AuthCookie.Auth,
-            cookieNameSuffix: this.config.cookieNameSuffix,
-        });
+        const existingUserIdResult = startNewSession
+            ? undefined
+            : await extractUserIdFromRequestHeaders<UserId>({
+                  headers: requestHeaders,
+                  jwtParams: await this.getJwtParams(),
+                  csrfHeaderNameOption: this.config.csrf,
+                  cookieName: isSignUpCookie ? AuthCookie.SignUp : AuthCookie.Auth,
+                  cookieNameSuffix: this.config.cookieNameSuffix,
+              });
 
         const cookieParams = await this.getCookieParams({
             isSignUpCookie,
@@ -909,14 +942,14 @@ export class BackendAuthClient<
         serviceOrigin?: string | undefined;
     }): Promise<
         RequireOneOrNone<{
-            secureUser: GetUserResult<DatabaseUser>;
+            secureUser: GetUserResult<DatabaseUser, UserId>;
             /**
              * @deprecated This only half authenticates the user. It should only be used in
              *   circumstances where JavaScript cannot be used to attach the CSRF token header to
              *   the request (like when opening a PDF file). Use `.getSecureUser()` instead,
              *   whenever possible.
              */
-            insecureUser: GetUserResult<DatabaseUser>;
+            insecureUser: GetUserResult<DatabaseUser, UserId>;
         }>
     > {
         const secureUser = await this.getSecureUser(params);
@@ -953,7 +986,7 @@ export class BackendAuthClient<
          * with the frontend auth client's `checkUser.performCheck` callback.
          */
         allowUserAuthRefresh: boolean;
-    }): Promise<GetUserResult<DatabaseUser> | undefined> {
+    }): Promise<GetUserResult<DatabaseUser, UserId> | undefined> {
         // eslint-disable-next-line @typescript-eslint/no-deprecated
         const userIdResult = await insecureExtractUserIdFromCookieAlone<UserId>({
             headers: requestHeaders,
@@ -1003,6 +1036,11 @@ export class BackendAuthClient<
         return {
             user,
             isAssumed: false,
+            cookieSession: {
+                userId: userIdResult.userId,
+                sessionStartedAt:
+                    userIdResult.sessionStartedAt ?? toTimestamp(userIdResult.jwtIssuedAt),
+            },
             responseHeaders: refreshHeaders || {},
         };
     }

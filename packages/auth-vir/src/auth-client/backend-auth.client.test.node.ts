@@ -191,6 +191,73 @@ describe(BackendAuthClient.name, () => {
                 id: UserId;
                 name: string;
             }>();
+            assert.strictEquals(userResult.cookieSession.userId, mockUser.id);
+            assert.isNumber(userResult.cookieSession.sessionStartedAt);
+        } finally {
+            await prismaClient.$disconnect();
+            await adapter.pgliteClient.close();
+        }
+    });
+    it('starts a new session on login when startNewSession is set', async (testContext) => {
+        const {backendAuthClient, mockUser, prismaClient, adapter} =
+            await setupBackendAuthClientTest({
+                testContext,
+            });
+
+        async function readSession(loginHeaders: Readonly<OutgoingHttpHeaders>) {
+            const csrfToken = extractCsrfTokenFromSetCookies(loginHeaders);
+            const userResult = await backendAuthClient.getSecureUser({
+                requestHeaders: {
+                    [testCsrfHeaderName]: csrfToken,
+                    cookie: setCookieHeaderToRegularCookieHeader(loginHeaders),
+                },
+                isSignUpCookie: false,
+                allowUserAuthRefresh: false,
+            });
+
+            return {
+                csrfToken,
+                sessionStartedAt: assertWrap.isDefined(userResult).cookieSession.sessionStartedAt,
+            };
+        }
+
+        try {
+            assert.isDefined(mockUser, 'Failed to find mock user.');
+
+            const firstLoginHeaders = await backendAuthClient.createLoginHeaders({
+                isSignUpCookie: false,
+                requestHeaders: {},
+                userId: mockUser.id,
+            });
+            const firstSession = await readSession(firstLoginHeaders);
+            const existingSessionHeaders: IncomingHttpHeaders = {
+                [testCsrfHeaderName]: firstSession.csrfToken,
+                cookie: setCookieHeaderToRegularCookieHeader(firstLoginHeaders),
+            };
+
+            await wait({
+                milliseconds: 5,
+            });
+
+            const reusedSession = await readSession(
+                await backendAuthClient.createLoginHeaders({
+                    isSignUpCookie: false,
+                    requestHeaders: existingSessionHeaders,
+                    userId: mockUser.id,
+                }),
+            );
+            const newSession = await readSession(
+                await backendAuthClient.createLoginHeaders({
+                    isSignUpCookie: false,
+                    requestHeaders: existingSessionHeaders,
+                    userId: mockUser.id,
+                    startNewSession: true,
+                }),
+            );
+
+            assert.deepEquals(reusedSession, firstSession);
+            assert.notStrictEquals(newSession.csrfToken, firstSession.csrfToken);
+            assert.isAbove(newSession.sessionStartedAt, firstSession.sessionStartedAt);
         } finally {
             await prismaClient.$disconnect();
             await adapter.pgliteClient.close();
